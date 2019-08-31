@@ -1,0 +1,25 @@
+#!/usr/bin/perl -w
+#v3.0
+
+#divide_input.pl $num_cpus < seqs_for_SNPs
+# creates seqs_for_SNPs.1, seqs_for_SNPs.2, ..., seqs_for_SNPs.$num_cpus
+# each with a fraction=1/$num_cpus of the lines of seqs_for_SNPs
+no warnings 'deprecated';
+
+my $num_cpus=$ARGV[0];
+my @lines=<STDIN>;
+my $count_file=1;
+my $outfile="seqs_for_SNPs.".$count_file;
+open OUT,">$outfile";
+for (my $i=0;$i<@lines;$i++) {
+    if ($i<$count_file*(scalar @lines)/$num_cpus) {
+	print OUT "$lines[$i]";
+    } else {
+	close OUT;
+	$count_file++;
+	$outfile="seqs_for_SNPs.".$count_file;
+	open OUT,">$outfile";
+	print OUT "$lines[$i]";
+    }
+}
+close OUT;

@@ -1,0 +1,52 @@
+#!/usr/bin/perl
+#v3.0
+
+
+=begin
+Takes a fasta file of genome sequences and a folder name and writes an individual fasta
+file of each genome, placing them into the specified directory
+Usage: fasta_genomes_to_individal_files3 myfile.fasta myDirectory
+=cut
+
+use warnings;
+use strict;
+use Cwd;
+
+my $infile = $ARGV[0];
+my $dir = $ARGV[1];
+my $home = getcwd(); #path to folder rom which program is run
+my @genomes = ();
+my $genomeID = ''; #col0 is the header col 1 is the sequence of genomes in $infile
+my $line = '';
+my @temp = ();
+my $header = '';
+my $seq = '';
+
+
+
+mkdir $dir;
+
+#read the infile genomes into @genomes
+open (INFILE, $infile) or die "Can't open $infile for reading. $!";
+while ($line = <INFILE>) {
+	chomp $line;
+	if($line =~ /^>/) {
+		$header = $line;
+		$line = <INFILE>;
+		chomp $line;
+		$seq = $line;
+		push @genomes, [$header, $seq];
+		}
+	}
+close INFILE;
+
+chdir $dir;
+for (my $i = 0; $i < scalar @genomes; $i++) {
+	@temp = split / /, $genomes[$i][0];
+	$genomeID = $temp[0];
+	$genomeID =~ s/^>//;
+	$seq = $genomes[$i][1];
+	open (OUTFILE, '>'.$genomeID.'.fasta') or die "Can't open $genomeID.'.fasta' for writing. $!";
+	print OUTFILE "$genomes[$i][0]\n$genomes[$i][1]\n";
+	close OUTFILE;
+	}

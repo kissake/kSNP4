@@ -1,0 +1,45 @@
+#!/usr/bin/perl -w
+#v3.0
+
+no warnings 'deprecated';
+
+use Bio::Phylo::IO 'parse';
+use Bio::Phylo::Treedrawer;
+
+
+my $num_taxa=$ARGV[1];
+
+open IN,"$ARGV[0]";
+my @strings=<IN>;
+my $string =join("",@strings);
+
+#my $string = '((A:1,B:2)n1:3,C:4)n2:0;';
+
+ my $tree = parse( -format => 'newick', -string => $string )->first;
+
+my $heigth=$num_taxa*20;
+
+ my $treedrawer = Bio::Phylo::Treedrawer->new(
+    -width  => 900,
+    -height => "$heigth",  #3000,
+    -shape  => 'RECT',  #'RECT',   #'CURVY', # curvogram
+    -mode   => 'PHYLO', # 'CLADO',  # 'PHYLO', # cladogram
+    -format => 'SVG'
+ );
+
+$treedrawer->set_text_width(400);
+$treedrawer->set_text_vert_offset(3);
+#$treedrawer->set_padding(10);
+#$treedrawer->set_node_radius(20);
+#$treedrawer->set_tip_radius(20);
+
+
+ $treedrawer->set_scale_options(
+    -width => '100%',
+    -major => '50%', # major cross hatch interval
+    -minor => '10%',  # minor cross hatch interval
+    -label => 'Distance',
+ );
+
+ $treedrawer->set_tree($tree);
+ print $treedrawer->draw;

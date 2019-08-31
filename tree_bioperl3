@@ -1,0 +1,31 @@
+#!/usr/bin/perl -w
+#v3.0
+
+no warnings 'deprecated';
+
+use Bio::Phylo::IO 'parse';
+use Bio::Phylo::Treedrawer;
+
+use Bio::TreeIO;
+use Bio::Tree::Draw::Cladogram;
+
+
+
+
+my $outfile=$ARGV[1];
+
+my $input = new Bio::TreeIO(-file   => "$ARGV[0]",
+                            -format => "newick");
+my $tree = $input->next_tree;
+
+my $obj1 = Bio::Tree::Draw::Cladogram->new(-bootstrap => 0,
+					   -tree    => $tree,
+					   -compact => 1,
+					   -top => 200,
+					   -bottom => 10);
+$obj1->print(-file => "$ARGV[1]");  #.eps file
+    
+
+#  -top => 100,
+#   -bottom => 500);
+

@@ -1,0 +1,70 @@
+#!/usr/bin/perl
+#v3.0
+
+#pick_snps_from_kmer_genome_counts.pl all_kmers
+# input file must be sorted!
+
+no warnings 'deprecated';
+
+my $kmers_file=$ARGV[0];
+
+#my $out=$kmer_counts_file.".SNP_loci.fasta";
+
+
+my $seqLine=`head -1 $kmers_file`;
+my $seq;
+my $k;
+if ($seqLine=~ /(\w+)/) {
+    $seq=$1;
+    $k=length($seq);
+}
+#print "k=$k\n";
+
+my %kmers=();
+
+my $current_s1="";
+
+open IN,"$ARGV[0]";
+while (my $line=<IN>) {
+    chomp $line;
+    my $seq=$line;
+    my $s1=substr($seq,0,(($k-1)/2));
+    my $s2=substr($seq,(($k-1)/2)+1);
+    my $center=substr($seq,(($k-1)/2),1);
+    my $j=$s1.".".$s2; 
+
+    if ($s1 ne $current_s1) {  # Save memory, otherwise hash can get too big
+	foreach my $seq0 (sort keys %kmers ) {
+
+	    if ( scalar keys(%{$kmers{$seq0}} ) > 1) {
+		my ($s3,$s4)=split/\./,$seq0;
+		foreach my $center0 (keys %{$kmers{$seq0}}) {
+		    print  ">$seq0","_","$center0\n$s3",$center0,$s4,"\n";
+		    #print  ">$seq","_","$center\n${$kmers{$seq}{$center}}[0]",$center,${$kmers{$seq}{$center}}[1],"\n";
+		}
+	    }
+	}
+	$current_s1=$s1;
+	%kmers=();
+    }
+    $kmers{$j}{$center}=1;
+    #@{$kmers{$j}{$center}}=($s1,$s2); 
+ 
+}
+close IN;
+
+#my $count_SNPs=0;
+# Do last one
+foreach my $seq (sort keys %kmers ) {
+  
+    if ( scalar keys(%{$kmers{$seq}} ) > 1) {
+	# it's a SNP locus
+	#$count_SNPs++;
+	my ($s1,$s2)=split/\./,$seq;
+	foreach my $center (keys %{$kmers{$seq}}) {
+	    print  ">$seq","_","$center\n$s1",$center,$s2,"\n";
+	    #print  ">$seq","_","$center\n${$kmers{$seq}{$center}}[0]",$center,${$kmers{$seq}{$center}}[1],"\n";
+
+	}
+    }
+}

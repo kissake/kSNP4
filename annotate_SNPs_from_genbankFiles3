@@ -1,0 +1,620 @@
+#!/usr/bin/perl
+#v3.4
+
+# annotate_SNPs_from_genbankFiles.pl   fastainput  finished_genomes SNPs_all  genbank1.gbk genbank_others.gbk
+no warnings 'deprecated';
+
+use Bio::SeqIO;
+use Bio::SeqIO::genbank;
+use IO::Socket::SSL;
+use Bio::Seq::RichSeq;
+use Bio::DB::Taxonomy::list;
+use Bio::Factory::SequenceStreamI;
+use Getopt::Long; 
+
+
+
+if(scalar @ARGV < 1)
+{
+        die "\nUsage: $0 -all <1|0> -SNPs_all <SNPs_all|core_SNPs|SNPs_in_majority0.#> -SNP_annotations <SNP_annotations_outfile> -SNPs_all_annotated <SNPs_all_annotated_outfile>  your_additional_genbank.gbk \nDefault annotates with annotations from genbank_from_NCBI.gbk, give it additional genbank files as arguments\n\
+Example1 to report only the first annotation it comes to, searching in the order genomes are listed in the annotate_list file and overwriting any existing SNP_annotations and SNPs_all_annotated files:\n $0 -all 0\n\
+Example2 to report all annotations from any genomes, giving it new output files so it does not overwrite existing ones:\n $0 -all 1 -SNPs_all_annotated SNPs_all_annotated.all  -SNP_annotations  SNP_annotations.all     \n\
+Example3 annotate just the SNPs in core_SNPs, and report all annotations from any genomes and check genbank_from_NCBI.gbk and myGenbank.gbk for annotations:\n $0 -all 1 -SNPs_all core_SNPs myGenbank.gbk\n"
+      
+}
+
+my $fasta="headers.annotate_list";
+my $finished_genomes_file="annotate_list";
+print "headers.annotate_list: $fasta\n";
+print "annotate_list: $finished_genomes_file\n";
+my $all_snps_file="SNPs_all";
+
+my @genbank_files=("genbank_from_NCBI.gbk");
+my $out1="SNP_annotations";
+my $out2="SNPs_all_annotated";
+
+my $redundant_annotations=0;
+
+GetOptions ( "SNPs_all:s" =>\$all_snps_file, "all:i"=>\$redundant_annotations,"SNP_annotations:s" =>\$out1,"SNPs_all_annotated:s" =>\$out2);
+
+
+my @extra_genbank=@ARGV;
+if (scalar @extra_genbank > 0) {
+    foreach my $i (@extra_genbank) {
+	push(@genbank_files,$i);
+    }
+}
+print "genbank files: @genbank_files\n";
+print "\$all_snps_file: $all_snps_file\n";
+print "\$redundant_annotations $redundant_annotations\n";
+print "SNP_annotations file: $out1\n";
+print "SNPs_all_annotated: $out2\n";
+
+my $DEBUG=0;
+
+my %cds=();
+my %OtherAnnotation=();
+my %UnannotedRegion=();
+my %other_annotation=();
+
+open IN,"$finished_genomes_file";
+my @finished_genomes=<IN>;
+chomp @finished_genomes;
+close IN;
+
+
+open IN,"$fasta" ;
+my %strain2gi=();
+my %gi2strain=();
+
+while (my $line=<IN>) {
+    chomp $line;
+    my $name="";
+    my $subname="";
+    if ($line =~/^>(\S+)\s(\S+)/) {
+	$gi="none";
+  	$name =$1;
+	$subname=$2;
+	$name =~ s/\|/_/g;
+	$name =~ s/,//g;
+	$name =~ s/\+/plus/g;
+	$name =~ s/\[//g;
+	$name =~ s/\]//g;
+	$name =~ s/\(//g;
+	$name =~ s/\)//g;
+	$name =~ s/\//-/g;
+	$name =~ s/[\t\r\s]+/_/g;
+	$name =~ s/_+/_/g;
+	$name =~ s/\://g;
+	
+	$name2 =substr($name,0,88);
+	$name=$name2;
+    }
+    if ($line =~/^>.*gi\|(\d+)/ || $line =~/^>.*_gi(\d+)/  || $line =~/^>.*_gi_(\d+)/  || $line =~/^>gi(\d+)/) {
+	$gi=$1;
+    } 
+    
+    # $name is the $genomeAccession for things w/out gi.
+
+    #print "strain2gi $name: $gi\n";
+    $strain2gi{$name}{$subname}=$gi; # Subname is the thing mummer reports for position info, now in col 6 in SNPs_all
+    @{$gi2strain{$gi}}=($name,$subname) ; #$name;
+    $strain{$subname}=1;
+
+}
+close IN;
+
+
+#http://doc.bioperl.org/releases/bioperl-1.0.1/Bio/Seq.html
+
+my $index=0;
+foreach my $genbank (@genbank_files) {
+    chomp $genbank;
+    
+    my $seqio_object=Bio::SeqIO->new(-file=>"$genbank",-format=>'genbank');
+    while ( my $seq_object = $seqio_object->next_seq() ) {
+	$genomeGI=$seq_object->primary_id;
+	$genomeAccession=$seq_object->accession_number;   
+	$genomeID=$seq_object->id; # This should be the first non-space characters in the fasta header if you annotate your own genome
+	# genomeID and $genomeAccession are the same thing in genbank sequences
+	chomp $genomeID;
+	
+	if (defined  $gi2strain{$genomeGI} ) {
+	    my ($name,$subname)=@{$gi2strain{$genomeGI}};
+	    $ID=$name."|".$subname;
+	} elsif   (defined $strain{$genomeID}) {
+	    $ID=$genomeID;
+	}
+	
+	print "From Genbank file:\n";
+	print "genome gi: $genomeGI\n";
+	print "genome accession: $genomeAccession\n";
+	print "seq_object->id: $genomeID\n";
+	print "ID for traking annotations: $ID\n\n";
+		
+	for my $feat_object ($seq_object->get_SeqFeatures) {
+	    $index++;
+	    #print "primary_tag ", $feat_object->primary_tag,"\n";
+	    if ($feat_object->primary_tag eq 'mat_peptide' || $feat_object->primary_tag eq 'CDS') {
+		$cdsLocation=$feat_object->location->to_FTstring();
+		$cds{$ID}{$index}{location}=$cdsLocation;
+		$cds{$ID}{$index}{primary_tag}=$feat_object->primary_tag;
+		
+		if ($DEBUG==1) {
+		    print "$ID\t$cds{$ID}{$index}{location}\n";
+		}
+		# if ($feat_object->location->isa('Bio::Location::SplitLocationI') ) {
+		#	for my $location ($feat_object->location->sub_Location) {
+		#	    print "location split: ", $location->start . "\t" . $location->end . "\n";
+		#	}
+		# }
+		my @all_tags=$feat_object->get_all_tags;
+		foreach  my $tag (@all_tags) {
+		    
+		    #	print $feat_object->get_tag_values($tag),"\n";
+		    my @values=$feat_object->get_tag_values($tag);
+		    chomp @values;
+		    
+		    if ($tag !~ /translation/ && $tag !~ /transl_table/ && $tag !~ /db_xref/ && $tag !~ /codon_start/ ) {   #  translations might take up alot of memory
+			chomp $tag;
+			$cds{$ID}{$index}{$tag}=$values[0]; 
+			if ($DEBUG==1) {
+			    print $feat_object->primary_tag," tag: $tag\n value: $cds{$ID}{$index}{$tag}\n";
+			}
+		    } elsif (   $tag  =~ /db_xref/ ) {
+			my @xref = $feat_object->get_tag_values($tag) ;
+			my $c=0;
+			foreach my $xref (@xref) {
+			    $c++;
+			    ($key,$val)=split/:/,$xref;
+			    chomp $key;
+			    chomp $val;
+			    $key=$key."_".$c; #  Add a count in case there are mutliple tags of the same type, e.g. lots of GO's.
+			    $cds{$ID}{$index}{$key}=$val;
+			    
+			    if ($DEBUG==1) {
+				print "key,val of xref: $key\t$val\n";
+			    }
+			}
+			if ($DEBUG==1) {
+			    print "\n";
+			}
+		    }
+		} #	for my $tag (@all_tags) {
+	    } # if ($feat_object->primary_tag eq 'CDS') {
+	    
+	    if ($feat_object->primary_tag ne 'CDS' && $feat_object->primary_tag ne 'source' && $feat_object->primary_tag ne 'mat_peptide') {
+		
+		my $primary_tag=$feat_object->primary_tag;
+		my $location=$feat_object->location->to_FTstring();
+		chomp $primary_tag;
+		chomp $location;
+		if ($DEBUG==1) {
+		    print "\nprimary tag: $primary_tag\n";
+		    print "location: $location\n";
+		}
+		
+		my $start=$feat_object->location->start;
+		my $end=$feat_object->location->end;
+		chomp $start;
+		chomp $end;
+		if ($DEBUG==1) {
+		    print "start: $start\n";
+		    print "end: $end\n";
+		}
+		
+		for my $tag ($feat_object->get_all_tags) {
+		    if ($DEBUG==1) {
+			print "tag: ",$tag, "\n";
+		    }
+		    my @values=$feat_object->get_tag_values($tag);
+		    chomp @values;
+		    if ($DEBUG==1) {
+			print " value: $values[0]\n";
+			#print " val 1: $values[1]\n";
+		    }
+		    $other_annotation{$ID}{$start}{$end}{$primary_tag}{$tag}=$value[0];
+		}
+	    }
+	} # if ($feat_object->primary_tag ne 'CDS') {
+    } # while ( my $seq_object = $seqio_object->next_seq() ) {
+}  # foreach my $genbank (@genbank_files) {
+
+open OUT2,">$out1";
+open OUT1,">$out2";
+
+
+print OUT2 "LocusNum\tContext\tNonSynonymous\tAnnotationType\tAminoAcids\tCodons\tSNPPositiononProtein\tGenomeName\tfasta_header\tSNPPositioninGenome\tGenomeGI\tProtein_GI\tEC_number\tlocus_tag\tfeature_location\tgene\tnote\tproduct\tprotein_id\tfunction\tprimary_tag"; 
+print OUT1 "LocusNum\tContext\tAllele\tPosition Strand\tID\tAnnotationType\tAminoAcid\tCodon\tPeptideContext\n";
+
+
+print "$all_snps_file\n";
+open ALL_SNPS, "$all_snps_file" or die "Cannot open all $all_snps_file: $!\n";
+my $sequence="";
+my $next_sequence="";
+my %locus=();
+my %fors=();
+my %fors2=();
+while (my $line = <ALL_SNPS>){
+	
+    if ($line =~ /^(\d+)\t(.*)\t(.*)\t(\d+(?:\sF|\sR)?|x)\t(\S+)\t(.*)/ ) {
+	my $locus_num=$1;
+	$next_sequence = $2;
+	my $snp_char = $3;
+	my $pos = $4;
+	my $name= $5;
+	my $fasta_header=$6;
+	chomp($name);
+	chomp($fasta_header);
+	$fors{$next_sequence}{$name}{$pos} = $snp_char;   # global, but gets reset
+	$fors2{$next_sequence}{$name}{$pos} = $fasta_header;
+	$locus{$next_sequence}=$locus_num;  # global
+	#print "$primer\t$fors{$primer}{$id}{$position}\t$position\t$id\n";
+	if ($sequence eq "") {
+	    $sequence=$next_sequence;
+	}
+	if ($sequence ne $next_sequence )  {
+	    
+	    # do annotation
+	    &annotate();
+ 	    # reset so you don't run out of memory
+	    delete $locus{$sequence};
+	    delete $fors{$sequence};
+	    delete $fors2{$sequence};
+           # move onto next sequence
+	    $sequence=$next_sequence;
+
+	}
+    } # if ($line =~ /^(\d+)\t(.*)\t(.*)\t(\d+(?:\sF|\sR)?|x)\t(\S+)\t(.*)/ ) {
+} #   while (my $line = <ALL_SNPS>){
+# do last one
+&annotate();
+
+
+
+sub annotate {
+    # now use global variables  for $sequence, %fors, %fors2
+
+    my %codon=();
+    my %aa=();
+    my %snp_pos_gene=();
+    my %snp_pos_protein=();
+    my $this_id="";
+    my %peptide_context=();
+    my %ns=();
+    my %amino_alleles=();
+    my %position_in_codon=();
+    my %CDS=();
+    my %locus_tag=();
+    my %codon_alleles=();
+    my $UnannotedRegion=0;
+    my $NotInAnnotated=0;
+    my %OtherAnnotation=();
+
+    #print "$sequence\n";
+    my $k=length($sequence);
+    $count++;
+    my $gene_start="";
+    my $gene_stop="";
+    $this_id="";
+    my %allele=();
+	
+    my $any_with_annotation=0;
+    foreach my $name (sort keys %{$fors{$sequence}}) {
+	foreach my $pos (sort {$a cmp $b} keys %{$fors{$sequence}{$name}}) {
+	    my $gi="";
+	    my $subname=$fors2{$sequence}{$name}{$pos};
+	    my $id=$name."|".$subname;
+	    #print "id: $id\n";
+	    #print "$pos\n";
+	    $allele{$fors{$sequence}{$name}{$pos}}=1;
+	    if ($pos ne "x"  && (defined %{$cds{$id}} || defined %{$other_annotation{$id}} )  ) {
+		$any_with_annotation=1;
+	    }
+	}
+    }
+    foreach my $name (@finished_genomes) {  # sort keys %{$fors{$sequence}}) {
+	foreach my $pos (sort {$a cmp $b} keys %{$fors{$sequence}{$name}}) {
+	   my $subname= $fors2{$sequence}{$name}{$pos};
+	   my $id=$name."|".$subname;
+	   
+	   if ( defined %{$cds{$id}} ) { 
+	       if ($redundant_annotations==1 || ($redundant_annotations==0 && scalar keys %CDS ==0) ) {
+	       # if (scalar keys %CDS ==0) {  # this means it only gets annotation from first id in sorted list, commenting out means it gets all annotations from all genomes. it will take longer, but give more complete annotations, like if genes have diff names in diff strains
+	       
+	       if ($pos =~ /(\d+)\s(R|F)/) {
+		   $position=$1;
+		   $strand=$2;
+		   
+		   foreach my $index ( keys %{$cds{$id}} ) {
+		       my $start="";
+		       my $end="";
+		       
+		       my @pieces=split/,/,$cds{$id}{$index}{location};
+		       foreach my $piece (@pieces) {
+			   
+			   if ($piece =~ /(\d+)\.\.(\d+)/) {
+			       my $start=$1;
+			       my $end=$2;
+			       if ( ($position >= $start ) && ( $position <= $end ) ) {
+				   
+				   $CDS{$id}{$index}=1; 
+				   
+				   if ($cds{$id}{$index}{location}  !~ /complement/) {
+				       $cds{$id}{$index}{orientation}="+";
+				       #  $whole_protein_seq=translate(substr($strain{$id},$start-1,$end-$start+1));
+				   } else {
+				       $cds{$id}{$index}{orientation}="-";
+				       #  $whole_protein_seq=translate(revcomp(substr($strain{$id},$start-1,$end-$start+1)));
+				   }
+				   
+				   
+				   #print "whole_protein_seq:\n$whole_protein_seq\n\n";
+				   #print "gene orientation: 	$cds{$id}{$index}{orientation}\n";
+				   
+				   if ($cds{$id}{$index}{orientation}   eq "+" ) {
+				       $snp_pos_gene{$id}{$index}=$position  - $start + 1;
+				       $position_in_codon{$index}=(($snp_pos_gene{$id}{$index} -1 ) % 3)+1;
+				   } else {
+				       $snp_pos_gene{$id}{$index}=$end - $position + 1 ;
+				       $position_in_codon{$index}=(($snp_pos_gene{$id}{$index} -1 ) % 3)+1;
+				   }
+				   # print "snp_pos_gene: $snp_pos_gene{$sequence}{$protein_gi} in protein_gi: $protein_gi\n";
+				   $snp_pos_protein{$id}{$index}= roundup($snp_pos_gene{$id}{$index}/3);
+				   #print "snp_pos_protein: $snp_pos_protein{$id}{$index}\n";
+				   #print "position_in_codon: $position_in_codon{$index}\n";
+				   #print "strand: $strand\n";
+				   if ( ($strand eq "F" &&  ($cds{$id}{$index}{orientation}  eq "+" )) || ($strand eq "R" &&  ($cds{$id}{$index}{orientation} eq "-" )) )  {
+				       $s=$sequence;
+				   } else {
+				       $s=revcomp($sequence);
+				   }
+				   # print "s: $s\n";
+				   foreach $a (keys %allele) {
+				       if ( ($strand eq "F" &&  ($cds{$id}{$index}{orientation} eq "+" )) || ($strand eq "R" &&  ($cds{$id}{$index}{orientation} eq "-" ) ) ) {
+					   $a2=$a;
+				       } else {
+					   $a2=revcomp($a);
+				       }
+				       #print "should be a dot: ",substr($s,($k-1)/2,1),"\n";
+				       # This could be buggy, if annotated as synonymous in one genome and nonsynon in another, probably need to index by $id. Only problem if you get multiple annotations from multiple genomes.
+				       if ($position_in_codon{$index} == 2) {
+					   # print "position_in_codon 2\n";
+					   $codon{$index}{$a}=substr($s,($k-1)/2-1,1).$a2.substr($s,($k-1)/2+1,1);
+					   $aa{$index}{$a}=translate($codon{$index}{$a});
+					   $seq=translate(substr($s,($k-1)/2-4,4).$a2.substr($s,($k-1)/2+1));
+					   # print "protein seq $seq\n\n";
+					   $peptide_context{$index}{$a}=$seq;
+				       } elsif ($position_in_codon{$index} == 3) {
+					   # print "position_in_codon 3\n";
+					   $codon{$index}{$a}=substr($s,($k-1)/2-2,2).$a2;
+					   $aa{$index}{$a}=translate($codon{$index}{$a});
+					   $seq=translate(substr($s,($k-1)/2-5,5).$a2.substr($s,($k-1)/2+1));
+					   if ($k<13) { $seq=translate(substr($s,($k-1)/2-2,2).$a2.substr($s,($k-1)/2+1));}
+					   # print "protein seq $seq\n\n";
+					   $peptide_context{$index}{$a}=$seq;
+				       } elsif ($position_in_codon{$index} == 1) {
+					   # print "position_in_codon 1\n";
+					   $codon{$index}{$a}=$a2.substr($s,($k-1)/2+1,2);
+					   $aa{$index}{$a}=translate($codon{$index}{$a});
+					   $seq=translate(substr($s,($k-1)/2-6,6).$a2.substr($s,($k-1)/2+1));
+					   if ($k<13) { $seq=translate(substr($s,($k-1)/2-3,3).$a2.substr($s,($k-1)/2+1));}
+					   # print "protein seq $seq\n\n";
+					   $peptide_context{$index}{$a}=$seq;
+				       } #  } elsif ($position_in_codon{$index} == 1) {
+				       
+				   } # foreach $a
+				   
+			       } # if ( ($position >= $start ) && ( $position <= $end ) ) {
+			   } #if ($piece =~ /(\d+)\.\.(\d+)/) {
+		       } # 	foreach my $piece (@pieces) {
+		   } # 	foreach my $index ( keys %{$cds{$id}} ) {
+	       } #  if ($pos =~ /(\d+)\s(R|F)/) {
+	       } # if ($redundant_annotations==1 || ($redundant_annotations==0 && scalar keys %CDS ==0) ) {
+	   } # 	if ( defined %{$cds{$id}} ) { 
+	} # 	foreach my $pos
+	
+    } #  foreach my $name (@finished_genomes)
+    
+    if (scalar keys %CDS ==0  && $any_with_annotation==1) {	
+	
+	# check if it's on an annotated region that isn't a CDS
+	foreach my $name (@finished_genomes) {  #foreach my $id (sort keys %{$fors{$sequence}}) {
+	    if ($redundant_annotations==1 || ($redundant_annotations==0 && scalar keys %OtherAnnotation ==0 ) ) {
+	    # if (scalar keys %OtherAnnotation ==0) {  # only grab annotation from the first one it comes to, comment out so it will grab all annotations from all genomes
+	    foreach my $pos (sort {$a cmp $b} keys %{$fors{$sequence}{$name}}) {
+		my $subname= $fors2{$sequence}{$name}{$pos};
+		my $id=$name."|".$subname;
+		
+		if (defined %{$other_annotation{$id}} ) {	
+		    #  $other_annotation{$ID}{$start}{$end}{$primary_tag}{$tag}=$value;
+		    if ($pos =~ /(\d+)\s(R|F)/) {
+			$position=$1;
+			$strand=$2;
+			
+			foreach my $start ( keys %{$other_annotation{$id}}) {
+			    foreach my $end (keys %{$other_annotation{$id}{$start}}) {
+				if ($position >= $start && $position <= $end) {
+				    foreach my $primary_tag (keys %{$other_annotation{$id}{$start}{$end}}) {
+					foreach my $tag (keys %{$other_annotation{$id}{$start}{$end}{$primary_tag}}) {
+					    $OtherAnnotation{$id}{$primary_tag}{$tag}{value}=$other_annotation{$id}{$start}{$end}{$primary_tag}{$tag};
+					    $OtherAnnotation{$id}{$primary_tag}{$tag}{location}=$start."..".$end;
+					}
+				    }
+				} #  if ($position >= $start && $position <= $end) {
+			    } # 	foreach my $end (keys %{$other_annotation{$id}{$start}}) 
+			} #  foreach my $start ( keys %{$other_annotation{$id}}) {
+		    } # 	if ($pos =~ /(\d+)\s(R|F)/) {
+		} # 	if (defined %{$other_annotation{$id}} ) {
+	    }  # foreach my $pos (sort {$a cmp $b} keys %{$fors{$sequence}{$id}}) {  
+	    } #     if ($redundant_annotations==1 || ($redundant_annotations==0 && scalar keys %OtherAnnotation ==0 ) ) {
+	} #  foreach my $name (@finished_genomes) { 
+    } #  if (scalar keys %CDS ==0  && $any_with_annotation==1) {	
+
+    if   (scalar keys %CDS ==0  && $any_with_annotation==1 && scalar keys  %OtherAnnotation == 0) {
+	$UnannotedRegion=1;
+    } elsif ($any_with_annotation==0) {
+	$NotInAnnotated=1;
+    }
+
+  
+    
+    # This may need checking, if a SNP is annotated as synonymous in one genome and nonsynonymous in another, and they both happen to have the same index in diff genomes. index is the number of the feature object from seq features of genbank file.
+    foreach my $id  ( keys %CDS ) {
+	foreach my $index (keys %{$CDS{$id}} ) {
+	    my $last_aa="";
+	    
+	    # check for nonsynonymous SNP
+	    foreach my $a (keys %{$aa{$index}} ) {
+		if ($last_aa eq "" ) {
+		    $last_aa=$aa{$index}{$a};
+		} elsif ( $aa{$index}{$a} ne $last_aa) {
+		    $ns{$index}=1;
+		}
+	    }
+	    if (!defined $ns{$index} && $ns{$index} != 1) {
+		$ns{$index}=0;
+	    }
+	    my %tmp_ax;
+	    foreach my $ax (values %{$aa{$index}}){ # sort unique to get rid of dup values 
+		$tmp_ax{$ax}=1;
+	    }
+	    $amino_alleles{$index}=join "_",(sort keys %tmp_ax );  #  (values %{$aa{$index}})); this left dup values
+	    
+	    $codon_alleles{$index}=join "_",(sort (values %{$codon{$index}}));
+	} # foreach my $index (keys %{$CDS{$sequence}{$id}} ) {
+    } #  	foreach my $id  (keys %{$CDS{$sequence}} ) {
+    
+    # Print results
+    
+    foreach my $name (sort keys %{$fors{$sequence}}) {
+	foreach my $pos (sort {$a cmp $b} keys %{$fors{$sequence}{$name}}) {
+	    my $a= $fors{$sequence}{$name}{$pos};
+	    my $subname=$fors2{$sequence}{$name}{$pos};
+	    my $id=$name."|".$subname;
+	    #print "$locus{$sequence} $id\n";
+	    if ($NotInAnnotated==1) {
+		print OUT1 "$locus{$sequence}\t$sequence\t$a\t$pos\t$name\t$subname\tNotInAnnotatedGenome\t\t\t\n";
+	    } 
+	    if ( $UnannotedRegion==1 ) {
+		print OUT1 "$locus{$sequence}\t$sequence\t$a\t$pos\t$name\t$subname\tUnannotatedRegion\t\t\t\n";
+	    } 
+	    if (  scalar keys  %OtherAnnotation > 0 )  {
+		print OUT1 "$locus{$sequence}\t$sequence\t$a\t$pos\t$name\t$subname\tNotProteinCoding\t\t\t\n";
+	    } 
+	    if (scalar keys %CDS > 0) {
+		my @indexes=keys %aa;
+		my $index=$indexes[0];
+		print OUT1 "$locus{$sequence}\t$sequence\t$a\t$pos\t$name\t$subname\tOnProtein\t$aa{$index}{$a}\t$codon{$index}{$a}\t$peptide_context{$index}{$a}\n";
+	    }
+	    
+	} # foreach my $pos 
+	
+    } #foreach my $id
+    
+    print OUT1 "\n";	    	  
+ 
+    if ($NotInAnnotated==1) {
+	print OUT2 "\n$locus{$sequence}\t$sequence\t0\tNotInAnnotatedGenome";
+    } elsif  ( $UnannotedRegion==1 ) { 
+	print OUT2 "\n$locus{$sequence}\t$sequence\t0\tUnannotatedRegion";
+    } elsif (  scalar keys  %OtherAnnotation > 0 )  { 
+	foreach my $id (sort keys %OtherAnnotation ) {
+	    my ($name,$junk)=split/\|/,$id;
+	    foreach my $primary_tag ( sort keys %{$OtherAnnotation{$id}} ) {
+		foreach my $pos (sort {$a cmp $b} keys %{$fors{$sequence}{$name}}) {
+		    my $subname=$fors2{$sequence}{$name}{$pos};
+
+		    print OUT2 "\n$locus{$sequence}\t$sequence\t0\tNotProteinCoding\t\t\t\t$name\t$subname\t$pos\t$strain2gi{$name}{$subname}\t$primary_tag";
+		    foreach my $tag (sort keys %{$OtherAnnotation{$id}{$primary_tag}} ) {
+			if ($OtherAnnotation{$id}{$primary_tag}{$tag}{value} ne "") {
+			    print OUT2 "\t$tag.value=$OtherAnnotation{$id}{$primary_tag}{$tag}{value}, $tag.location=$OtherAnnotation{$id}{$primary_tag}{$tag}{location}";	
+			} elsif ( $OtherAnnotation{$id}{$primary_tag}{$tag}{location} ne "") {
+			    print OUT2 "\t$tag.location=$OtherAnnotation{$id}{$primary_tag}{$tag}{location}";
+			}
+		    }
+		}
+	    }
+	}
+	
+    } elsif (scalar keys  %CDS >0)  {
+	foreach my $id (sort keys  %CDS ) {
+	    foreach my $index  (sort {$a <=> $b} keys  %{$CDS{$id}}) {
+		#if ($codon_alleles{$index} =~ /-/) {
+		#    $ns{$index}="frameshift";
+		#}
+		my ($name,$junk)=split/\|/,$id;
+		foreach my $pos (sort {$a cmp $b} keys %{$fors{$sequence}{$name}}) {
+		    my $subname=$fors2{$sequence}{$name}{$pos};
+		    
+		    print OUT2 "\n$locus{$sequence}\t$sequence\t$ns{$index}\tOnProtein\t$amino_alleles{$index}\t$codon_alleles{$index}\t$snp_pos_protein{$id}{$index}\t$name\t$subname\t$pos\t$strain2gi{$name}{$subname}";
+		    print OUT2 "\t$cds{$id}{$index}{'GI_1'}\t$cds{$id}{$index}{'EC_number'}\t$cds{$id}{$index}{'locus_tag'}\t$cds{$id}{$index}{location}\t$cds{$id}{$index}{'gene'}\t$cds{$id}{$index}{'note'}\t$cds{$id}{$index}{'product'}\t$cds{$id}{$index}{'protein_id'}\t$cds{$id}{$index}{'function'}\t$cds{$id}{$index}{primary_tag}";
+		} # 	foreach my $pos (sort {$a cmp $b} keys %{$fors{$sequence}{$name}}) {
+	    }
+	}
+	
+    } else {
+	print OUT2 "\n$locus{$sequence}\t$sequence\t0\tUnannotated";
+    }
+    
+} # sub annotate
+
+print OUT2 "\n";
+close OUT1;
+close OUT2;
+
+
+
+
+sub revcomp {
+    my ($s) = @_;
+    $s =~ tr/wsatugcyrkmbdhvnATUGCYRKMBDHVN/WSTAACGRYMKVHDBNTAACGRYMKVHDBN/;
+    $s = reverse $s;
+    return $s;
+}
+
+sub translate() {
+  my ($seq) = shift;
+  my  %transtable = ('GCT', 'A', 'GCC', 'A', 'GCA', 'A', 'GCG', 'A',
+                     'TGT', 'C', 'TGC', 'C', 'GAT', 'D', 'GAC', 'D',
+                     'GAA', 'E', 'GAG', 'E', 'TTT', 'F', 'TTC', 'F',
+                     'GGT', 'G', 'GGC', 'G', 'GGA', 'G', 'GGG', 'G',
+                     'CAT', 'H', 'CAC', 'H', 'ATT', 'I', 'ATC', 'I',
+                     'ATA', 'I', 'AAA', 'K', 'AAG', 'K', 'TTG', 'L',
+                     'TTA', 'L', 'CTT', 'L', 'CTC', 'L', 'CTA', 'L',
+                     'CTG', 'L', 'ATG', 'M', 'AAT', 'N', 'AAC', 'N',
+                     'CCT', 'P', 'CCC', 'P', 'CCA', 'P', 'CCG', 'P',
+                     'CAA', 'Q', 'CAG', 'Q', 'CGT', 'R', 'CGC', 'R',
+                     'CGA', 'R', 'CGG', 'R', 'AGA', 'R', 'AGG', 'R',
+                     'TCT', 'S', 'TCC', 'S', 'TCA', 'S', 'TCG', 'S',
+                     'AGT', 'S', 'AGC', 'S', 'ACT', 'T', 'ACC', 'T',
+                     'ACA', 'T', 'ACG', 'T', 'GTT', 'V', 'GTC', 'V',
+                     'GTA', 'V', 'GTG', 'V', 'TGG', 'W', 'TAT', 'Y',
+                     'TAC', 'Y', 'TAA', '*', 'TAG', '*', 'TGA', '*',);
+
+
+  my $idx=0;
+  my $prot="";
+  $seq =~ s/-//g;  # added 6/9/14
+  while   ($idx < length($seq)) {
+      my $codon=substr($seq,$idx,3);
+      my $aa = $transtable{$codon};
+      $prot .=$aa;
+      $idx +=3;
+  }
+  if ($prot eq "") {
+      $prot="?";
+  }
+  return $prot;
+
+}
+
+sub roundup {
+    my $n = shift;
+    return(($n == int($n)) ? $n : int($n + 1))
+}
+
+exit 1;
+
+
+

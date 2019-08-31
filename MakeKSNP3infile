@@ -1,0 +1,66 @@
+#!/usr/bin/perl
+#v3.3
+
+=begin
+Takes  the fasta genome files in a directory and writes a kSNP3 input file that lists the path
+to the file separated by a tab from the genome ID.
+In the Semi-automatic mode [S] the user must manually enter each genome ID after the input file is written
+In the Automatic mode [A] the genome ID is written automatically based on the file name.
+
+No othe files may be in that files folder.
+
+Must be run from the directory that encolsed the genome files directory
+Usage: MakeKSNPinfile3 myDirectory myInfile [A or S], where myInfile is the name of the kSNP3 infile that is to be written.
+=cut
+
+use warnings;
+use strict;
+use Cwd;
+
+my $indir = $ARGV[0];
+my $outfile = $ARGV[1];
+my $mode = uc $ARGV[2]; #S for semi-automatic, A for automatic
+my @Files =();
+my $home = getcwd(); #path to current directory
+my $thisPath = '';
+my $genomeID = '';
+my @temp = ();
+
+
+open (OUTFILE, '>'.$outfile) or die "Can't open $outfile for writing. $!";
+
+#print "At beginning path is $home\n";
+
+#chdir $indir;
+#$indir = getcwd();
+#print "After changing to the input directory the path is now $indir\n";
+
+opendir(THISDIR,$indir) or die "Can't open the current directory.\n";
+@Files = grep(!/^\./,readdir THISDIR);
+closedir THISDIR;
+
+if($mode eq 'A') {
+	print "The mode is Automatic.\n";
+	}
+	elsif($mode eq 'S') {
+		print "The mode is Semi-automatic.\n";
+		}
+		else {die "You must enter A (automtic mode) or S (semi-automatic mode). \n";}
+		
+
+
+for (my $i = 0; $i < scalar @Files; $i++) {
+	$thisPath = $home."/$indir".'/'.$Files[$i];
+	print OUTFILE "$thisPath\t";
+	if ($mode eq 'S') {
+		print OUTFILE "\n";
+		}
+		elsif ($mode eq 'A') {
+			@temp = split /\./, $Files[$i];
+			$genomeID = $temp[0];
+			$genomeID =~ s/[\[\]{}:;()|\\\/,+]/_/g;
+			print OUTFILE "$genomeID\n";
+			}
+	}
+	
+close OUTFILE;

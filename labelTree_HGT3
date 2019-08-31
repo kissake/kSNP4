@@ -1,0 +1,128 @@
+#!/usr/bin/perl
+#v3.0
+
+#  labelTree_AlleleCount.pl tree_out_c node_summ_c  >! tree_hgt_labels
+no warnings 'deprecated';
+my $intree=shift;  #$ARGV[0];
+#print "intree: $intree\n";
+my $countFile=shift;
+
+
+my %nh=();
+open IN,"$countFile";
+my @lines=<IN>;
+close IN;
+chomp @lines;
+foreach my $line (@lines) {
+    if ($line =~ /(\d+)\t(.*)\t(\S+)\t(\d+)\t(\d+)\t(\d+)/) {
+	$node=$2;
+	$name=$2;
+	$m=$4;
+	$e=$5;
+	$hgt2here=$6;
+	if ($m == 0 ) { 
+	    $mut=$e;
+	} else { 
+	    $mut=$m;
+	}
+	$nh{$node}="x".$hgt2here."_m".$mut;
+    }
+}
+
+@lines=(); 
+
+open IN,"$intree";
+@lines=<IN>;
+close IN;
+my $tree="";
+foreach my $line (@lines) {
+    chomp $line;
+    $tree .=$line;
+}
+my $count_nodes=0;
+
+my  @parts=split/\)/,$tree;
+my $treeNew="";
+foreach my $part (@parts) {
+  #  print "part before $part\n";
+    if ($part =~ /^(\d+)\:/) {
+	$node=$1;
+    }	
+    if (defined $node && !defined $nh{$node}) { 
+	#print "$node\n";
+	$nh{$node}=0;
+    }
+    #$part =~ s/^(\d+)\:/[N$1 AC=$nh{$1}]\:/;
+ #   $part =~ s/^(\d+)\:/N$1_$nh{$1}\:/;  # numbers nodes and SNP count
+ $part =~ s/^(\d+)\:/$nh{$1}\:/; # SNP count only
+
+    $part .=")";
+   # print "part after  $part\n";
+
+    $treeNew .=$part;
+}
+
+#$treeNew =~ s/(.*)\)(\d+)\;\)\d+\)/$1\)N$2;/;
+$treeNew =~ s/(.*\;).*/$1/ ; 
+#$treeNew =~ s/(.*)\)\d+\;\)\d+\)/$1\)/;
+#print "$treeNew\n";
+
+
+@parts=();
+@parts=split/\(/,$treeNew;
+my $treeNew2="";
+foreach my $part (@parts) {
+ #   print "part before  $part\n";
+    my $node="";
+    if ($part =~ /^(.*?)\:/) {
+	$node=$1;
+    }	
+    if ($node ne "" && !defined $nh{$node}) { 
+	#print "$node\n";
+	$nh{$node}=0;
+    }
+    #$part =~ s/^(.*?)\:/$1\[$nh{$1}\]\:/;
+   $part =~ s/^(.*?)\:/$1\[$nh{$1}\]\:/;
+
+    $part .="(";
+ #   print "part after  $part\n";
+
+    $treeNew2 .=$part;
+}
+
+chop $treeNew2; # remove last (
+
+#print "$tree\n\n";
+#print "$treeNew2\n";
+
+@parts=();
+@parts=split/,/,$treeNew2;
+my $treeNew3="";
+foreach my $part (@parts) {
+   # print "part before  $part\n";
+    if ($part !~ /^\(/  && $part =~ /^(.*?)\:/) {
+	$node=$1;
+    	
+	if ( !defined $nh{$node}) { 
+	    #print "$node\n";
+	    $nh{$node}=0;
+	}
+	#$part =~ s/^(.*?)\:/$1\[$nh{$1}\]\:/;
+	$part =~ s/^(.*?)\:/$1\[$nh{$1}\]\:/;
+    }
+ 
+
+    $part .=",";
+    #print "part after   $part\n";
+
+    $treeNew3 .=$part;
+}
+
+
+chop $treeNew3; # remove last ,
+#$treeNew3 =~ s/(.*?\))(\d+)\;/$1\[N$2_$nh{$2}\]\;/;
+$treeNew3 =~ s/(.*?\))(\d+)\;/$1\[$nh{$2}\]\;/;
+
+#print "$tree\n\n";
+print "$treeNew3\n";
+

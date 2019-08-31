@@ -1,0 +1,56 @@
+#!/bin/bash
+#v3.0
+: <<'EndBlock'
+#This script downloads geomes from the Bacterial Finished Geomes site ftp://ftp.ncbi.nih.gov/genomes/Bacteria/
+#The input file is a list of genomes that is obtained by copying the genomes of interest from that page
+#and pasting them into a text file.  The name, date and time columns are tab delimited, but each ID is followed 
+#by a space that must be eliminated by global replace, then the date and time columns must be deleted
+
+#If the .sh extension is removed from the script file and the file is put into /usr/local/bin
+#it can be invoked from anywhere with the command FetchGenomesFromDraft
+#Usage: FetchGenomesFromDraft myGenomes.txt
+
+
+EndBlock
+
+infile=$1 #the first argument is the name of the input file
+list=`cat $infile`
+
+thisDir=$PWD  #thisDir is the directory from which this script is run
+mkdir 'GenomeFiles'
+cd 'GenomeFiles'
+GenomesDir=$PWD #GenomeDir is the directory where .fna files will be stored
+cd "$thisDir"
+echo $thisDir
+echo $GenomesDir
+	
+for item in $list; do
+	mkdir $item
+	cd "$item"
+	echo "Before first curl I am in $PWD"	
+	curl "ftp://ftp.ncbi.nih.gov/genomes/Bacteria/$item/" > 'temp.txt'
+	cat temp.txt | tr -s ' ' > temp2.txt
+	cut -d ' ' -f 9 temp2.txt > temp3.txt
+	rm temp.txt
+	rm temp2.txt
+	genomes=`cat temp3.txt`
+
+	for name in $genomes; do
+		if [ -n "$(echo $name | grep 'fna')" ];
+			then
+			wget "ftp://ftp.ncbi.nih.gov/genomes/Bacteria/$item/$name"
+			#mv "$name" "$GenomesDir"
+		fi		
+
+		rm temp3.txt
+		mv "$item" "$GenomesDir"
+	done
+
+cd ..
+#rm -rf  $item
+cd "$thisDir"
+done
+
+
+
+exit

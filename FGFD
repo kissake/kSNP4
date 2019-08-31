@@ -1,0 +1,66 @@
+#!/bin/bash
+#v3.0
+: <<'EndBlock'
+#This script download geomes from the Bacterial Draft Geomes site ftp://ftp.ncbi.nih.gov/genomes/Bacteria_DRAFT/
+#The input file is a list of genomes that is obtained by copying the genomes of interest from that page
+#and pasting them into a text file.  The name, date and time columns are tab delimited, but each ID is followed 
+#by a space that must be eliminated by global replace, then the date and time columns must be deleted
+
+#If the .sh extension is removed from the script file and the file is put into /usr/local/bin
+#it can be invoked from anywhere with the command FetchGenomesFromDraft
+#Usage: FetchGenomesFromDraft myGenomes.txt
+
+#The contigs in each genome ar4e merged into a single fasta file separated by a block of 200 Ns, and the file
+#is saved into a folder named MergedFiles
+EndBlock
+
+infile=$1 #the first argument is the name of the input file
+list=`cat $infile`
+
+thisDir=$PWD  #thisDir is the directory from which this script is run
+mkdir 'AssemblyFiles'
+cd 'AssemblyFiles'
+MergeDir=$PWD #MergeDir is the directory where the Assembly files will be stored
+cd "$thisDir"
+	
+for item in $list; do
+	mkdir $item
+	cd "$item"
+	echo "Before first curl I am in $PWD"	
+	curl "ftp://ftp.ncbi.nih.gov/genomes/Bacteria_DRAFT/$item/" > 'temp.txt'
+	cat temp.txt | tr -s ' ' > temp2.txt #converts multiple spaces to single spaces
+	cut -d ' ' -f 9 temp2.txt > temp3.txt  #deletes fields 1-8
+	rm temp.txt
+	rm temp2.txt
+	genomes=`cat temp3.txt`  #puts everything in genomes onto one line
+
+	for name in $genomes; do
+		if [ -n "$(echo $name | grep 'fna.tgz')" ];
+			then
+			curl "ftp://ftp.ncbi.nih.gov/genomes/Bacteria_DRAFT/$item/$name" > "$name" #
+			echo "Finished downloading."
+			tar -xf *.tgz
+			echo "Item is $item, name is $name"
+			cat *.fna > $name.fa
+			mv "$name.fa" "$item"
+			#mv "$name.fa" "$MergeDir"
+			mv "$item" "$MergeDir"
+		fi
+		
+		
+		
+		#merge_fasta_contigs $item.fa > $item.fasta
+		
+		#rm "$item.fa"
+		#rm temp3.txt
+		#rm *.tgz
+	done
+
+cd ..
+rm -rf  $item
+cd "$thisDir"
+done
+
+
+
+exit

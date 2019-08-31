@@ -1,0 +1,26 @@
+#!/usr/bin/perl
+#v3.0
+
+# subset_mer_list.pl >! mer_list
+no warnings 'deprecated';
+
+    my $count=0;
+    foreach $w qw(A C G T) {
+	foreach $x qw(A C G T) {
+	    foreach $y qw(A C G T) {
+		foreach $m qw(A C G T) {
+		    #foreach $t qw(A C G T) {
+		    #foreach $s qw(A C G T) {
+		    my $z=$w.$x.$y.$m;
+		    $zarray[$count]=$z;
+		    print "$z.mers\n";
+		    $count++;
+		    #}
+		    #}
+		}
+	    }
+	}
+    }
+
+
+

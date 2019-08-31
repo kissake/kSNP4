@@ -1,0 +1,196 @@
+#!/usr/bin/perl
+#v3.1
+use warnings;
+use strict;
+use Cwd;
+use Statistics::Lite qw(:all);
+
+=begin
+Input is a list of genome names tab separated from the path to that genome fasta file.
+Output is a fasta file of all of the genomes in the list
+V3.1 checks the line endings of each file and changes any with Windows line endings
+to Unix line endings before running the body of MakeFasta.  If any files with 
+classic Mac line endings are encountered MakeFasta is terminated while warning the user to manually
+change the line endings of those files to Unix.
+=cut
+
+my $listFile = $ARGV[0];
+my $outfile = $ARGV[1];
+my $genomeID = ''; 
+my $filePath = ''; #path to the file corresponding to the $genomeID
+my $line = '';
+my @temp = ();
+my @Files = (); #col0 is fileID col1 is path
+my $fileSize = 0;
+my @fileStats = ();
+my $median = 0; #the median file size
+my @goodFileSizes = (); #col0 is genomeID col1 is file size.  Only files < 10 MB are included
+my @data = (); #holds just the file sizes
+my $quitFlag = 0; #set to 1 if any file is < 70% of the median file size
+my $terminate = '';
+my $seq = '';
+my $header = '';;
+
+
+#check the input files and convert to unix line endings if necessary
+checkInputFiles($listFile);
+
+#get the list of genomes and paths into @Files
+open(INFILE, $listFile) or die "Can't open $listFile for reading. $!";
+while ($line = <INFILE>) {
+	chomp $line;
+	@temp = split /\t/, $line;
+	$genomeID = $temp[1];
+	$filePath = $temp[0];
+	push @Files, [$genomeID, $filePath];
+	}
+close INFILE;
+
+
+
+#get the sizes of all of the files into @goodFileSizes
+for (my $i = 0; $i < scalar @Files; $i++) {
+	@fileStats = stat $Files[$i][1];
+	$fileSize = $fileStats[7];
+	if($fileSize < 10000000) { #if it is not a file of raw reads
+		push @goodFileSizes, [$Files[$i][0], $fileSize];
+		push @data, $fileSize;	
+		}
+	}
+
+#get the median size
+$median = median(@data);
+print "The median file size is $median.\n";
+
+#check for unusually small files < 70% of median size
+for (my $i = 0; $i < scalar @goodFileSizes; $i++) {
+	if($goodFileSizes[$i][1] < 0.7 * $median) {
+		$quitFlag = 1;
+		print "$goodFileSizes[$i][0] is $goodFileSizes[$i][1] which is < 70% of the median size of $median.\n";
+		}
+	}
+if ($quitFlag >0) {
+	print "\n\nDo you want to continue [C] or do you want to edit the input file list to remove the smale file(s) [E]?\n";
+	$terminate = <STDIN>;
+	print "$terminate\n";
+	if ($terminate =~/^E/  or $terminate =~/^e/) {
+		die "Terminating MakeFasta to permit editing of input list.\n";
+		}
+	}
+
+
+#open the output file
+open (OUTFILE, '>'.$outfile) or die "Can't open $outfile for writing. $!";
+
+for (my $i = 0; $i < scalar @Files; $i++) {
+	open (INFILE, $Files[$i][1]) or die "Can't open $Files[$i][1]. $!";
+	$line = <INFILE>;
+	chomp $line;
+	$line =~ s/^>//;
+	$header = $line;
+	$seq = ''; #re-initializes $seq to the empty string;
+	while ($line = <INFILE>) {
+		chomp $line;
+		if ($line !~/^>/ and length $line >0) {
+			$seq = $seq.$line;
+			}
+		}
+	print OUTFILE ">$Files[$i][0] $header\n$seq\n";
+	close INFILE;
+	}
+close OUTFILE;	
+
+
+
+#######################   Subroutines     #################################
+sub checkInputFiles
+{
+#!/usr/local/ActivePerl-5.16/bin/perl
+=begin
+Takes a list of paths and genome names as th input (same as kSNP3)
+checks each file and returns the kind of line endings it has
+=cut
+use warnings;
+use strict;
+
+my $listFile = $_[0];
+my $genomeID = ''; 
+my $filePath = ''; #path to the file corresponding to the $genomeID
+my $line = '';
+my @temp = ();
+my @Files = (); #col0 is fileID col1 is path
+my $LE = '';
+my $fileName = '';
+my $pathToDirectory = '';
+my @args = ();
+my $macFlag = 'F';
+
+
+#get the list of genomes and paths into @Files
+open(INFILE, $listFile) or die "Can't open $listFile for reading. $!";
+while ($line = <INFILE>) {
+	chomp $line;
+	@temp = split /\t/, $line;
+	$genomeID = $temp[1];
+	$filePath = $temp[0];
+	push @Files, [$genomeID, $filePath];
+	}
+close INFILE;
+
+#test each file to determine its file endings
+for (my $i = 0; $i <scalar @Files; $i++) {# scalar @Files
+	$LE = getLE($Files[$i][1]);
+	@temp = split /\//, $Files[$i][1];
+	$fileName = pop @temp;
+	$pathToDirectory = join "\/", @temp;	
+	if ($LE ne 'Unix'){
+		print "The line endings of $fileName are $LE\n";
+		}
+	
+	if ($LE eq 'Windows') {
+		open(INFILE, $Files[$i][1]) or die "Can't open $Files[$i][1] for reading. $!";
+		open (OUTFILE,'>temp.txt') or die "Can't open temp.txt for writing. $!";
+		while ($line = <INFILE>) {
+			$line =~ s/\r\n/\n/;
+			print OUTFILE "$line";
+			}
+		close INFILE;
+		close OUTFILE;
+		rename ('temp.txt', $fileName);
+		@args = ('mv', "$fileName", "$pathToDirectory");
+		system(@args) == 0 or die "system @args failed: $!";
+		}
+		elsif($LE eq 'Mac') {
+			print "\nWARNING!!! $fileName has Classic Mac line endings.\nYou must manually change the line endings to Unix!\n";	
+			$macFlag = 'T';
+			}
+	}
+if ($macFlag eq 'T') {
+	die "\n\nThe files listed above have classic Mac line endings.\nYou must manually change those endings to Unix.\n Terminating MakeFAsta.\n";
+	}
+}
+
+sub getLE
+{
+my $file = $_[0];
+my $line = '';
+my $lastChar = '';
+my $secondLastChar = '';
+my $LE = ''; #Windows, Unix or Mac
+
+open (INFILE, $file) or die "Can't open $file for reading. $!";
+$line = <INFILE>;
+$lastChar = ord (substr($line, -1, 1));
+$secondLastChar = ord(substr($line, -2, 1));
+if($lastChar == 10 and $secondLastChar == 13) {
+	$LE = 'Windows';
+	}
+	elsif ($lastChar == 10 and $secondLastChar != 13) {
+		$LE = 'Unix';
+		}
+		elsif ($lastChar == 13) {
+			$LE = 'Mac';
+			}
+close INFILE;
+return $LE;
+}
