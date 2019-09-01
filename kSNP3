@@ -223,28 +223,61 @@ echo ""
 set count=0
 set num_seqs=`wc -l fasta_list | awk '{print $1}' `
 echo "Number of input sequences: $num_seqs "
+# Create the file 'fileName2genomeName if it does not exist, overwrite it with
+# an empty file if it does exist. - JN
 printf "" >! fileName2genomeName
 while ($count < $num_seqs)
+    # fasta_list is in '<file> <name> [<additional data?>*]' pairs, one per 
+    # line.  Extract file and name from the current line. - JN
     set name=`awk -F'\011' -v c="$count" 'FNR==c+1 {print $2}' fasta_list`
     set file=`awk -F'\011' -v c="$count" 'FNR==c+1 {print $1}' fasta_list`
+    # Output the current element in a numbered list of entries in 'fasta_list'
     printf "$count\t$name\t$file\n"
+    # Take all of the FASTA entries in the current file, identify them based
+    # on the name of the file, and merge them into one long entry using the
+    # character N (typically representing an arbitrary nucleic acid in a fasta
+    # file) to separate previously fully-isolated / fully-identified entries.
+    #
+    # That data goes into a file named with a consistent prefix (for later
+    # operations?) and a numbered suffix. - JN
     $kSNP/merge_fasta_reads3  "$file" >! fsplit$count
+    # Document the association between the original name and the transformed
+    # file with the new name in fileName2genomeName - JN
     printf "fsplit$count\t$name\n" >> fileName2genomeName
     @ count ++
 end
 
+# This test for k-mer size less than 32 may be an artifact of previous versions
+# of jellyfish that could not handle k-mer sizes greater than 31.  That is no
+# longer true; revisit? TODO - JN
 if ( $k <= 31  ) then
     # jellyfish can do forward and reverse complement counts at same time, only the canonical direction (first in sorted list) kmer is listed, but counts are for both directions
     date
     echo "Running jellyfish to find k-mers"
+    # Loop over the files in the standard naming scheme (prefix + count) - JN
     foreach f (fsplit*[0-9])
+      # Check to see if kmers_all.<filename> exists and has size > 0.  If so,
+      # we have probably already done this work and can skip to the next? - JN	    
       if !(-s kmers_all.$f) then
 	echo "$f"
+	# Create kmers count database with canonical counts from current file
+	# with name Jelly.<filename>.
 	$kSNP/jellyfish count -C -o Jelly.$f -m $k -s 1000000000  -t $num_cpus  $f
+	# TODO Doublecheck output; it should be Jelly.<filename> but may be
+	# Jelly.<filename>_<optional text here> ... - JN
 	printf "" >! unsortedkmers.$f
+	# It is possible that due to a bug, this code is never executed because
+	# there are no Jelly.<filename>_... files, only Jelly.<filename>. TODO - JN
 	foreach i (Jelly."$f"_*)
+	    # Output the corresponding dump in columnar format.
 	    $kSNP/jellyfish dump -c $i  >> unsortedkmers."$f"
 	end
+	# Sort lexographically the kmer count dump in lexographic order and
+	# remove the unsorted file (temporary file).  Is this necessary?  It
+	# probably takes quite a while for a large dataset.  This could hurt
+	# performance badly.  Also, if there are multiple outputs of jellyfish,
+	# they will be in the same order as each other, so maybe it could be 
+	# fast to do some sort of merge, rather than concatenate? TODO - JN
     	sort unsortedkmers.$f >! kmers_all.$f
 	rm -f unsortedkmers.$f
       endif
@@ -252,10 +285,15 @@ if ( $k <= 31  ) then
     echo "Finished running jellyfish"
 endif
 
+# Not able to easily find 'sa' tool TODO - JN
+# SA tool clearly a drop-in replacement for Jellyfish.  Produces unsorted count
+# data also, in non-canonical form (must be canonicalized and sorted by perl
+# helper script). - JN
 if  ($k>31 ) then
     echo "Running sa to find k-mers"
     date
     foreach f (fsplit*[0-9])
+     # Check to see if kmers_all.<filename> exists and has size > 0	    
      if !(-s kmers_all.$f) then
 	$kSNP/sa $f $k 0
 	$kSNP/rc_kmer_freqs3 $f.counts >! kmers_all.$f 
@@ -266,17 +304,37 @@ if  ($k>31 ) then
     date
 endif
 
+### Input: kmers_all.fsplit<N> (all)
+### Output: kmers.fsplit<N> (for each input)
+### Transform: Reduce # of entries by filtering out low frequency elements per
+###   specified criteria (arbitrary?  If not, then what rationale? TODO) - JN
+
 # Remove kmers that occur less than freq=average of median and mean kmer frequency for that genome.  
 echo "Removing kmers that occur less than freq=average of median and mean kmer frequency for that genome."
 date
 foreach f (fsplit*[0-9])
   awk '{print $2}' kmers_all.$f > ! freq.$f
+  # This runs a perl program over the frequency list to calculate the mean,
+  # the median, and then the average of the two rounded to an integer. - JN
   set min_kmer_coverage=`$kSNP/get_quantile3 freq.$f`
   echo "minimum kmer coverage for $f is $min_kmer_coverage"
+  # Filter out kmers with lower frequency than this filter - JN
   awk -v m=$min_kmer_coverage '$2>=m {print}' kmers_all.$f >! kmers.$f
 end
 date
+# Remove temporary file - JN
 rm freq.*
+
+### Input: kmers.fsplit<N> (all)
+### Output: Dir.fsplit<N>/X*.mers (many for each fsplit<N> source) 
+### Output: kmers_fsplit<N>.conflictsDeleted (each)
+### Transform: k-mers in the kmers.fsplit<N> file sorted into buckets of 
+###   identical prefix
+### Transform: A conflict is when a k-mer matches another in every character
+###   except the center.  These are removed from the buckets of identical
+###   prefix above, and the resulting k-mers are simply listed in the output
+###   file (.conflictsDeleted) in sorted order.
+
 
 # Remove kmers from a genome if there are conflicting alleles in that genome 
 echo "Removing conflicting kmers from each genome with conflicting alleles"
@@ -285,6 +343,8 @@ foreach f (fsplit*)
     echo $f
     mkdir Dir.$f
     cd Dir.$f
+    # Read from fsplit<N>, output into buckets (typically 5-mers) in the
+    # kmers.fsplit<N> directory named with the prefix common to the entries.mers
     $kSNP/subset_mers3 ../kmers.$f
     printf "" >! cmds_remove_conflicting 
     foreach subset (*.mers)
@@ -297,12 +357,16 @@ echo "Finished removing conflicting kmers"
 date
 
 
+### Input: Dir.fsplit<n>/X*.mers
+### Output: X*.mers
+### Transform: Merge sort across fsplit<N> groups, with removal of duplicates.
+
 echo "Merged sorted kmer files and remove duplicates"
 date
 $kSNP/subset_mer_list3 > ! mer_list
 printf "" >! cmds_sort
 foreach subset (`cat mer_list`)
-echo "sort  -m  -u Dir.*/$subset.conflictsDeleted  > $subset" >> cmds_sort
+    echo "sort  -m  -u Dir.*/$subset.conflictsDeleted  > $subset" >> cmds_sort
 end
 $kSNP/parallel_commands3 $num_cpus cmds_sort
 echo "Finished merging kmers across genomes"
@@ -322,6 +386,13 @@ if (  $?SNPs_all  ) then
     end
 endif
 ################################## if no -SNPs_all file or it is empty, then find new SNPs
+
+### Input: X*.mers (required to be sorted)
+### Output: SNP_loci.X*.mers.fasta (fasta format)
+### Transform: Create sorted list of k-mers that have been seen and are SNPs
+###   (multiple k-mers differing in only the central monomer) in fasta format,
+###   with the generic (k-mer with central monomer wildcarded) indicated in the
+###   description ( >... prefix to the fasta data)
 
 if (! $?SNPs_all  ) then 
     # do all the SNP finding
@@ -347,12 +418,15 @@ foreach f (fsplit*)
     end
 end
 $kSNP/parallel_commands3 $num_cpus cmds_find_allele
+# Combine partitioned SNPs into one file (not sorted?) - JN
 foreach f (fsplit*)
     cat Dir.$f/SNPs.*.mers >! Dir.$f/SNPs
 end
 
 # Run mummer to find the position of each SNP in the finished genomes. Don't do this for unassembled draft genomes or merged raw read genomes, since positional information is not informative.
 
+# This isn't done for 'Run1', and I don't have mummer output to review, so 
+# skipping for now.  Want to review to see if GNU parallel can improve. - JN
 if (-s annotate_list) then
     echo "Finding SNP positions in finished genomes using mummer."
     date
@@ -381,22 +455,36 @@ date
 printf "" >! all_SNPs_unsorted
 foreach f (fsplit*)
     set test=`grep -w  $f fileName2genomeName | wc -l`
+    # Note, this will filter out all fsplit files not referenced in 
+    # fileName2genomeName.  Maybe simpler to simply go from the contents of this
+    # file instead? - JN
     if ($test > 0 ) then
 	set genome=`grep -w  $f fileName2genomeName | awk '{print $2}'`
 	printf "genome: $genome  in Dir.$f\n"
 	if (-s Dir.$f/SNP.positions) then
+	    # This is based on mummer output, above. - JN
+	    # Add field containing filename (fsplit<N>) inserted in the 4th column.
 	    awk -F'\011' -v f=$f '{print $1 "\t" $2 "\t" $3  "\t" f "\t" $4}' Dir.$f/SNP.positions  >> all_SNPs_unsorted
 	    #cat Dir.$f/SNP.positions >> all_SNPs_unsorted
 	else
+            # If no mummer output, data is pulled from SNPs file, with the 3rd 
+	    # column being 'x', the 4th column being genome name from the file
+	    # above, and the fifth column being blank (instead of from mummmer
+	    # data).
 	    awk -v genome=$genome '{print  $1 "\t" $2 "\tx\t" genome "\t" }' Dir.$f/SNPs >> all_SNPs_unsorted
 	endif
     endif
 end
 if (  $?SNPs_all ) then 
+    # Remove 1st column from SNPs_all file and append to unsorted SNPs list. - JN
     # use existing SNP numbering
     awk -F'\011'  '{print $2 "\t" $3 "\t" $4  "\t" $5 "\t" $6 "\t" $7}' "$SNPs_all" >> all_SNPs_unsorted
 endif
+# Maybe it makes sense to do a merge sort over just appending a bunch of things
+# and then sorting?  Not clear how long this is.  Example 1 is under 1M entries
+# and sorts in under 1 second. - JN
 sort -u all_SNPs_unsorted >! all_SNPs_sorted
+# Cannot find this command: number_SNPs_all3 - JN
 $kSNP/number_SNPs_all3 all_SNPs_sorted
 $kSNP/rename_from_table3 all_SNPs_sorted_labelLoci fileName2genomeName SNPs_all
 
@@ -409,6 +497,7 @@ if !($?ref_genome) then
     set ref_genome=`head -1 fileName2genomeName | awk '{print $2}'`
 endif
 
+# Did not review this path due to not executing in Run1.  TODO - JN
 if ($?vcf ) then
     $kSNP/parse_SNPs2VCF3 SNPs_all VCF.$ref_genome.vcf  $ref_genome
 endif

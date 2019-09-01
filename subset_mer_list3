@@ -4,6 +4,7 @@
 # subset_mer_list.pl >! mer_list
 no warnings 'deprecated';
 
+# Note that @zarray and $count are unneeded in this script. TODO - JN
     my $count=0;
     foreach $w qw(A C G T) {
 	foreach $x qw(A C G T) {

@@ -69,6 +69,17 @@ if ($k > 5) {
     }
 }
 
+# Above creates a dictionary from N (a sequential number) to:
+#  - a corresponding 5-mer for k > 5.
+#  - a corresponding k-1-mer for k = 4 or k = 5.
+#  - a corresponding 1-mer (monomer) for k < 4.
+
+
+# This main code appears to put each line into a file named <mer-prefix>.mers 
+# where <mer-prefix> is based on k to be:
+#  k>5: first 5 characters of line
+#  k<4: first character of line
+#  else: first k-1 characters of line
 $count=0;
 open IN,"$infile";
 my $out=$zarray[$count].".mers";

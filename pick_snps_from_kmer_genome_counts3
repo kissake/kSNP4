@@ -10,7 +10,7 @@ my $kmers_file=$ARGV[0];
 
 #my $out=$kmer_counts_file.".SNP_loci.fasta";
 
-
+# Determine k from first word (k-mer) in first argument - JN
 my $seqLine=`head -1 $kmers_file`;
 my $seq;
 my $k;
@@ -20,12 +20,14 @@ if ($seqLine=~ /(\w+)/) {
 }
 #print "k=$k\n";
 
+# Hash table for k-mers - JN
 my %kmers=();
 
 my $current_s1="";
 
 open IN,"$ARGV[0]";
 while (my $line=<IN>) {
+    # Transform k-mer in $seq into k-mer with center monomer wildcarded out ($j) - JN
     chomp $line;
     my $seq=$line;
     my $s1=substr($seq,0,(($k-1)/2));
@@ -33,11 +35,19 @@ while (my $line=<IN>) {
     my $center=substr($seq,(($k-1)/2),1);
     my $j=$s1.".".$s2; 
 
+    # When we transition to a k-mer prefix (first half) that we've not seen,
+    # output data from the previous prefix.  Separated by prefix to prevent
+    # hash size from growing out of control (other options to permit
+    # optimization as sizes get larger / smaller?)- JN
     if ($s1 ne $current_s1) {  # Save memory, otherwise hash can get too big
+	# Loop through all already seen k-mers in previous prefix - JN
+	# Suspect sort is unneeded? - JN
 	foreach my $seq0 (sort keys %kmers ) {
-
+            # In the case where this k-mer pattern matches more than one k-mer...
 	    if ( scalar keys(%{$kmers{$seq0}} ) > 1) {
 		my ($s3,$s4)=split/\./,$seq0;
+		# Print >, the pattern, _, the difference, then a newline, then the prefix, 
+		# difference and suffix and a newline. TODO: Look at the output - JN
 		foreach my $center0 (keys %{$kmers{$seq0}}) {
 		    print  ">$seq0","_","$center0\n$s3",$center0,$s4,"\n";
 		    #print  ">$seq","_","$center\n${$kmers{$seq}{$center}}[0]",$center,${$kmers{$seq}{$center}}[1],"\n";
@@ -45,8 +55,10 @@ while (my $line=<IN>) {
 	    }
 	}
 	$current_s1=$s1;
+	# Delete the hash containing the data just output, creating empty hash for next partition. - JN
 	%kmers=();
     }
+    # Flag this k-mer as seen.
     $kmers{$j}{$center}=1;
     #@{$kmers{$j}{$center}}=($s1,$s2); 
  
@@ -55,6 +67,8 @@ close IN;
 
 #my $count_SNPs=0;
 # Do last one
+# Possible unneeded sort? - JN
+# Should be broken out into a function? - JN
 foreach my $seq (sort keys %kmers ) {
   
     if ( scalar keys(%{$kmers{$seq}} ) > 1) {
