@@ -1,0 +1,9 @@
+Notes:
+ - Strong tendency to sort.
+ - Lots of temporary files, some challenges with naming, tracking, rewriting, etc.
+ - Some notable repeated code that should probably be broken out into subroutines.
+ - Lots of filename construction.  I want to replace probably all of it.
+ - Not enough comments.  Some of desire for more comments comes from lack of 
+   understanding of the underlying concepts, but I don't think all of it does.
+
+
