@@ -506,6 +506,11 @@ echo "Finished finding SNPs"
 date
 
 
+# Suggest prompting user to delete the temporary files directory if the run was
+# successful?  Also suggest having a unique temporary directory for each run
+# instead of deleting the previous temporary directory automatically. - JN
+
+
 # You can delete this Directory if everything works, but it's useful for debugging in case the run fails
 rm -r TemporaryFilesToDelete
 mkdir TemporaryFilesToDelete
@@ -540,6 +545,7 @@ echo "Building parsimony tree"
 $kSNP/parsimonator -s SNPs_all_matrix -n SNPs_all -N 100 -p 1234
 
 # get all the best scoring trees
+# Note: Score == length. - JN
 set best_parsimony_tree_score=`grep "Parsimony tree" RAxML_info.SNPs_all | sort -k6 -n | head -1 | awk '{print $6}'`
 set best_parsimony_trees=`grep "Parsimony tree" RAxML_info.SNPs_all | awk -v score=$best_parsimony_tree_score '$6==score {print $14}'`
 set Num_best_parsimony_trees=`grep "Parsimony tree" RAxML_info.SNPs_all | awk -v score=$best_parsimony_tree_score '$6==score {print $14}' | wc -l | awk '{print $1}'`
@@ -554,9 +560,25 @@ rm outfile outtree
 echo "Y\n" | $kSNP/consense
 
 # Give it branch lengths, optimized for the consensus parsimony tree.
+# Input to force_binary_tree is one tree per file.
 $kSNP/force_binary_tree outtree outtree.resolved
 $kSNP/FastTreeMP -nt -pseudo   -nome -mllen -gamma -gtr -intree outtree.resolved SNPs_all_matrix.fasta >! tree.parsimony.tre
 mv RAxML* TemporaryFilesToDelete/.
+
+
+### This section does similar to above section, except for different input file
+### SNPs_all has been replaced by SNPs_in_majorit<min_fraction_with_locus> ...
+### The above should maybe be proceduralized to reduce code repetition?
+###  - JN
+
+
+###
+###  BEGIN TEST ALPHA
+###
+###  This starts a long conditional ending in a loop far below, also marked
+###  with label above (except END).
+###
+
 
 ## Build parsimony tree from SNPs_in_majority"$min_fraction_with_locus"
 if ($?min_fraction_with_locus) then 
@@ -565,12 +587,19 @@ if ($?min_fraction_with_locus) then
  $kSNP/SNPs_all_2_fasta_matrix3 SNPs_in_majority"$min_fraction_with_locus"  SNPs_in_majority"$min_fraction_with_locus"_matrix.fasta SNPs_in_majority"$min_fraction_with_locus"_matrix
 
 # Build parsimony tree
+# Not sure what arguments are here.  -N appears to be # of trees to generate?
+# It is definitely associated with # of files to generate (0 - N-1)
 $kSNP/parsimonator -s SNPs_in_majority"$min_fraction_with_locus"_matrix -n SNPs_majority"$min_fraction_with_locus" -N 100 -p 1234
 
 # get all the best scoring trees
+# Find the best score...
 set best_parsimony_tree_score=`grep "Parsimony tree" RAxML_info.SNPs_majority"$min_fraction_with_locus" | sort -k6 -n | head -1 | awk '{print $6}'`
+# Grab the elements with the best score...
 set best_parsimony_trees=`grep "Parsimony tree" RAxML_info.SNPs_majority"$min_fraction_with_locus" | awk -v score=$best_parsimony_tree_score '$6==score {print $14}'`
+# Finally, count how many elements we grabbed.
 set Num_best_parsimony_trees=`grep "Parsimony tree" RAxML_info.SNPs_majority"$min_fraction_with_locus" | awk -v score=$best_parsimony_tree_score '$6==score {print $14}' | wc -l | awk '{print $1}'`
+
+# Output a summary to user.
 printf "Number of most parsimonious trees for SNPs_in_majority$min_fraction_with_locus : $Num_best_parsimony_trees\n"
 printf "Score of those trees: $best_parsimony_tree_score\n"
 
@@ -583,15 +612,20 @@ rm outfile outtree
 echo "Y\n" | $kSNP/consense
 
 # Give it branch lengths, optimized for the consensus parsimony tree.
+# Script making use of biology related perl modules - JN
 $kSNP/force_binary_tree outtree outtree.resolved
+# Multiprocessing software. - JN
 $kSNP/FastTreeMP -nt -pseudo   -nome -mllen -gamma -gtr -intree outtree.resolved SNPs_in_majority"$min_fraction_with_locus"_matrix.fasta  >! tree.majority"$min_fraction_with_locus".tre
 mv RAxML* TemporaryFilesToDelete/.
+
+
+# The below takes away -nome -mllen -intree.  Look up what that changes, try to figure out why? - JN
 
 # Uncomment the following line to build ML majority tree, and write over the parsimony majority tree just built
  #$kSNP/FastTreeMP  -nt -pseudo  -gamma   -gtr SNPs_in_majority"$min_fraction_with_locus"_matrix.fasta  >!  tree.majority"$min_fraction_with_locus".tre
 
 
-
+ # Can this loop execute more than once?  Why a foreach? - JN
  foreach t (  majority"$min_fraction_with_locus" )
     $kSNP/label_tree_nodes3 tree.$t.tre   > ! tree_nodeLabel.$t.tre
     $kSNP/tree_nodes3 tree_nodeLabel."$t".tre  nodes.$t
@@ -625,6 +659,23 @@ mv RAxML* TemporaryFilesToDelete/.
    endif
  end
 endif
+
+###
+###  END TEST ALPHA
+###
+
+
+# Note that there seems to be at least some duplication from conditional above. - JN
+# At some point take a thorough look to compare, and then factor out the
+# differences to make it easier to understand.
+#
+
+###
+###  START TEST BETA
+###
+###  This starts a long conditional ending in a loop far below, also marked
+###  with label above (except END).
+###
 
 ##Building parsimony tree from only the core SNPs
 if ($?core) then 
@@ -711,6 +762,7 @@ if ( $?nj) then
 echo "Building NJ tree"
 date
 # NOTE:  This next line can take a long time if there are million+ SNP loci and 100+ genomes. SNP_matrix2dist_matrix does loops, so it's slow, should be parallelized.  Probably should try the PHYLIP program, although scores might be different since i count them as somewhat closer if they share a locus but not the allele than if they don't even share the locus. But since NJ SNP trees are not accurate anyway, i'm not inclined to spend anymore time since no one should use this option.
+# Above seems clear - JN
 $kSNP/SNP_matrix2dist_matrix3 SNPs_all_matrix >! NJ.dist.matrix
 $kSNP/distance_tree3 >! tree.NJ.tre
 echo "Finished building NJ tree"
@@ -728,6 +780,7 @@ echo "Finding nodes"
 
 foreach t ( `cat tree_list1` ) 
     if (-s tree."$t".tre) then
+	# Opportunity to make this a subroutine?
 	$kSNP/label_tree_nodes3 tree.$t.tre   > ! tree_nodeLabel.$t.tre
 	$kSNP/tree_nodes3 tree_nodeLabel."$t".tre  nodes.$t
 	echo "Placing SNPs on nodes $t tree"
@@ -795,6 +848,8 @@ if (-s annotate_list) then
     cat genbank_from_NCBI.gbk.* | grep -v BioProject  >! genbank_from_NCBI.gbk
     rm genbank_from_NCBI.gbk.*
 
+
+    # The annotate_SNPs_from_genbankFiles3 is a complicated script; deserves review / commenting. TODO - JN
     if (-e "$genbankFile" ) then 
 	$kSNP/annotate_SNPs_from_genbankFiles3   -all $all_annotations  $genbankFile
     else
@@ -830,6 +885,7 @@ if (-s annotate_list) then
     echo "Finished SNP annotation."
 endif
 
+# Difference between ParAnn, and python ParAnn.py ? - TODO - JN
 #run ParAnn
 $kSNP/ParAnn
 
@@ -852,6 +908,12 @@ if (-s SNPs_all && -s tree.parsimony.tre && -s tree_AlleleCounts.parsimony.tre &
 endif
 
 exit
+
+###
+### Code after this section is preserved history, not live. - JN
+###
+
+
 
 ##########################################################################################################
 ##########################################################################################################

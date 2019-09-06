@@ -71,6 +71,8 @@ while (my $line=<IN>) {
     chomp $line;
     my $name="";
     my $subname="";
+    # I think this should be a procedure / lib loaded from a consistent place;
+    # it is used in  the script to grab genes from the remote server... - JN
     if ($line =~/^>(\S+)\s(\S+)/) {
 	$gi="none";
   	$name =$1;
@@ -272,6 +274,7 @@ while (my $line = <ALL_SNPS>){
 
 
 
+# I think this wants commenting / solid review.
 sub annotate {
     # now use global variables  for $sequence, %fors, %fors2
 

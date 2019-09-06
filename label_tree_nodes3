@@ -1,6 +1,11 @@
 #!/usr/bin/perl
 #v3.1
 
+# This inputs a "tree", parses it with library, prints all of the node IDs,
+# and then changes the non-leaf nodes to be identified by a number indicating
+# the sequential order they were parsed into, then displays / outputs the
+# complete tree (after the lists of the IDs?) to stdout. - JN
+
 # ~/script/label_tree_nodes.pl outtree > outtree_nodes_labeled
 no warnings 'deprecated';
 use Bio::TreeIO;

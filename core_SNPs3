@@ -8,6 +8,7 @@
 # SNPs_in_majority.$min_fraction_with_locus  has the SNPs present in at least this fraction of genomes: $min_fraction_with_locus
 no warnings 'deprecated';
 
+# Count # "ids" in IN - JN
 my $snp_file=$ARGV[0];
 my $idfile=$ARGV[1];
 my $min_fraction_with_locus=$ARGV[2];
@@ -42,20 +43,28 @@ while (my $line = <IN>) {
    # print "$line\n";
     if ($line !~ /\w+/) {
 	$locus_count++;
-	$count=0;
-	if ($locus_count >1) {
+	$count=0; # Count of what?
+	if ($locus_count >1) { # Do this only _after_ the locus is read.  (what happens to last locus data?) - JN
 	    # print SNP into either core or nonCore file
+	    #
+	    # This tests to see if we have found the last ID / locus (not sure why > portion of test) - JN
 	    my $num_ids_with_locus=scalar keys %snps;
+	    # If this matches, we output "core" and "majority", but only count the "core" part? - JN
 	    if ($num_ids_with_locus >= $num_ids) {
 		$count_core++;
 		print CORE "\n";
 		print MAJORITY  "\n";
+		# Go through snps in sorted order (maybe?  What's this $a cmp $b business?) - JN
 		foreach my $id (sort {$a cmp $b} keys %snps) {
+		    # More $a ... $b stuff?  This time going through IDs associated with each snp in
+		    # sorted order, to ... - JN
 		    foreach my $c (sort {$a <=> $b} keys %{$snps{$id}}) {
+			# Output the item in core + majority into corresponding output files. - JN
 			print CORE "$snps{$id}{$c}\n";
 			print MAJORITY "$snps{$id}{$c}\n";
 		    }
 		}
+	    # This test tells us the item is non-core, and also majority.
 	    } elsif  ($num_ids_with_locus >= $num_ids*$min_fraction_with_locus && $num_ids_with_locus < $num_ids) {
 		$count_noncore++;
 		$count_majority++;
@@ -67,6 +76,8 @@ while (my $line = <IN>) {
 			print NONCORE "$snps{$id}{$c}\n";
 		    }
 		}
+            # If neither above test succeeds, this (locus?) is "noncore", and
+	    # the data is only put in the noncore output file - JN
 	    } else {
 		$count_noncore++;
 		print NONCORE "\n";
@@ -78,15 +89,25 @@ while (my $line = <IN>) {
 	    }
 	}
 	# reinitialize %snp after printing
+        # Reset snp the first time too (but don't do the rest).  Note: snps
+	# is initialized, so this isn't needed for first run either. - JN
 	%snps=(); 
+    # Test to see if line matches <numbers> <blah> <blah> <digits+else?> <nonwhitespace>
+    # instead of \w+ ... if so, increment count, and ...  - JN
     } elsif ($line =~ /\d+\t.*\t.*\t(\d+(?:\sF|\sR)?|x)\t(\S+)/) { 
 	my $id=$2;
 	$count++;
+	# This pattern appears in at least one other file; code that can
+	# be generalized out? - JN
+	# This records the data in $line for every ID and every count...
+	# A little memory intensive? - JN
 	$snps{$id}{$count}=$line;  # keep by count in case locus occurs multiple positions in a genome
     }
     
 }
 
+# Here we repeat the tests above .... Pain to keep in sync.  Can we find 
+# another approach?  Looks like it works the same today.- JN
 # Add last one
 my $num_ids_with_locus=scalar keys %snps;
 if ($num_ids_with_locus >= $num_ids) {
@@ -120,6 +141,8 @@ if ($num_ids_with_locus >= $num_ids) {
     }
 }
 
+# This is where we fix the fact that we weren't incrementing 'majority' in the
+# first of each test above. - JN
 $count_majority += $count_core;
 
 close IN;

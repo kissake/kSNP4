@@ -16,6 +16,7 @@ my $NodeHashFile = $ARGV[1];
 my $treefile=$ARGV[2];
 my $NodeSigCounts=$ARGV[3];
 
+# Determine file format from filename.  Potential for error? - JN
 if ($NodeHashFile =~ /perlhash/) {
     %clades=%{ retrieve($NodeHashFile) };
 } else {
@@ -278,6 +279,7 @@ print "Finished SNPs2nodes-new\n";
 ##########################################################
 ########################## Subroutines ##############
 
+# This subroutine is only used once. - JN
 sub read_snps_from_SNPs_all_file {
     if (-e $all_snps_file) {
 	
@@ -309,6 +311,7 @@ sub read_snps_from_SNPs_all_file {
 
 
 
+# This subroutine not used. - JN
 ###################
 sub revcomp {
     my $seq = shift;
