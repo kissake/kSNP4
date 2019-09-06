@@ -103,6 +103,9 @@ while ($#argv > 0)
     shift
 end
 
+# VAR
+set CheckFileNames="$kSNP/CheckFileNames"
+set NameErrorsFile="NameErrors.txt"
 $kSNP/CheckFileNames $fasta_list
 if (-f 'NameErrors.txt') then	
 	echo "pKSNP3 terminated because of error file being present."
@@ -110,7 +113,15 @@ if (-f 'NameErrors.txt') then
 endif
 
 
+# TODO Should these below be moved up to the argument parsing section above? - JN
+# Initial thought is that yes, they should, even if it makes argument parsing
+# a longer section, and comments as to meaning should be added.
 
+# Note: AddPaths expands the first argument if it is a pipe or if it is a full
+#   instead of relative path.  Otherwise, it prepends the second argument to
+#   the first with a unix / separating the two.
+# VAR
+set AddPaths="$kSNP/add_paths3"
 if ($?dir) then 
     set dir = `$kSNP/add_paths3 "$dir" "$thisDir"`
     printf "dir $dir\n"
@@ -137,10 +148,15 @@ if ($?SNPs_all) then
     printf "SNPs_all $SNPs_all\n"
 endif
 
+# This should be bundled into a 'log' type function for consistency of output.
+# Also, this will permit finer grained debug info? - JN
 echo "Starting kSNP"
 date
 set startseconds=`date +%s`
 
+# Turn the below into the option to write a config file matching the current
+# config / arguments / etc, then add the ability to parse (eval?) the config 
+# file to permit recreating a previous config exactly. TODO - JN
 echo "input fasta_list: $fasta_list"
 echo "output directory: $dir"
 echo "k=$k"
@@ -161,6 +177,12 @@ if ($?genbankFile  ) then
  endif 
 endif
 
+
+# My ideal answer to this is to find an approach that maximizes load without
+# pre-calculating / having to know the number of CPUs, such as parallel?
+# xargs is a tool I'm more familiar with, and just loading the CPU is my
+# general approach.  Be wary of IO bound or network bound tasks.  - JN
+
 #get the number of CPUs
 if !($?num_cpus) then
     #get the operating system
@@ -168,6 +190,7 @@ if !($?num_cpus) then
 
     if ($OS == 'Darwin') then
 	echo "The operating system is $OS"
+	# Avoid temporary file by using pipes in awk command below. TODO - JN
 	/usr/sbin/system_profiler SPHardwareDataType>wubba
 	set num_cpus=` awk '/Total Number of Cores/ {print $5}' wubba`
 	echo "There are $num_cpus CPUs"  
@@ -188,6 +211,8 @@ endif
 echo "Number CPUs: $num_cpus"
 
 #chesk the fasta genome files to be sure line endings are Unix and fix if they are not
+# VAR
+set FastaList="fasta_list"
 cp -f "$fasta_list" fasta_list
 $kSNP/LE2Unix fasta_list
 # First check genome names. Prints to STDERR if duplicate names, STDOUT list of genome names parsed for kSNP. Use names corresponding to (none, any or all of) these in the $annotate_list file.
