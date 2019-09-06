@@ -51,7 +51,7 @@ set all_annotations=0
 # Note: AddPaths expands the first argument if it is a pipe or if it is a full
 #   instead of relative path.  Otherwise, it prepends the second argument to
 #   the first with a unix / separating the two.
-# VAR
+# VAR - Do a string substitution below to permit easy renaming of scripts, etc.
 set AddPaths="$kSNP/add_paths3"
 
 
@@ -110,6 +110,9 @@ while ($#argv > 0)
 		printf "SNPs_all $SNPs_all\n"
 		breaksw
 	default:
+		# Note that an unknown argument results in the eating of the
+		# next argument; this seems like a bug.  Perhaps this code path
+		# should result in failing and a display of the usage page? - JN
 		shift
 		printf "Unknown parameter $argv[1]\n"
 	endsw
@@ -164,6 +167,7 @@ endif
 # xargs is a tool I'm more familiar with, and just loading the CPU is my
 # general approach.  Be wary of IO bound or network bound tasks.  - JN
 
+# If number of CPUs not specified, determine programmatically - JN
 #get the number of CPUs
 if !($?num_cpus) then
 	#get the operating system
@@ -172,6 +176,7 @@ if !($?num_cpus) then
 	if ($OS == 'Darwin') then
 		echo "The operating system is $OS"
 		# Avoid temporary file by using pipes in awk command below. TODO - JN
+		### set num_cpus=`/usr/sbin/system_profiler SPHardwareDataType | awk '/Total Number of Cores/ {print $5}'`
 		/usr/sbin/system_profiler SPHardwareDataType>wubba
 		set num_cpus=` awk '/Total Number of Cores/ {print $5}' wubba`
 		echo "There are $num_cpus CPUs"  
@@ -191,28 +196,44 @@ if !($?num_cpus) then
 endif
 echo "Number CPUs: $num_cpus"
 
-#chesk the fasta genome files to be sure line endings are Unix and fix if they are not
 # VAR
 set FastaList="fasta_list"
+set UnixLineEndings="$kSNP/LE2Unix"
+
+#chesk the fasta genome files to be sure line endings are Unix and fix if they are not
 cp -f "$fasta_list" fasta_list
 $kSNP/LE2Unix fasta_list
 # First check genome names. Prints to STDERR if duplicate names, STDOUT list of genome names parsed for kSNP. Use names corresponding to (none, any or all of) these in the $annotate_list file.
 #echo  "Sequence names used for kSNP:"
 #$kSNP/genome_names3  "$fasta" 
 
+# Ensure our working directory is the directory specified in the commandline 
+# arguments, even if it doesn't exist yet (TODO - Ensure directory created in 
+# argument parsing above? Will be clearer that the dir will be created) - JN 
 if !( -e "$dir") then
 	mkdir "$dir"
 endif
 cd "$dir"
 
+# Ensure 'annotate_list' file exists, either with contents of file specified
+# as a commandline argument, or the contents of the file with that name now,
+# or an empty file if no such file now.  Will it be better to not care?
+
+# Consider making this path fully specified?
+# Benefits to operating on a copy? (does this program modify 'annotate_list'
+# file?) - JN
+# VAR
+set AnnotateList="annotate_list"
 if ( -e "$annotate_list") then
 	cp -f "$annotate_list" annotate_list
 else
 	touch annotate_list
 endif
 
+# Note that this command seems to undo the above LE2Unix command...? - JN
 cp -f "$fasta_list" fasta_list
 
+# Which means that the conversion to unix line-endings needs to be redone...? - JN
 #DOS to unix
 perl -i -pe 's/\015\012/\012/g' annotate_list
 perl -i -pe 's/\015/\012/g' annotate_list
@@ -220,6 +241,7 @@ perl -i -pe 's/\015\012/\012/g' fasta_list
 perl -i -pe 's/\015/\012/g' fasta_list
 
 
+# Output contents of annotate_list to the console (why?) - JN
 echo "Finished genomes for finding SNP positions:"
 cat annotate_list
 echo ""
@@ -231,8 +253,20 @@ set num_seqs=`wc -l fasta_list | awk '{print $1}' `
 echo "Number of input sequences: $num_seqs "
 # Create the file 'fileName2genomeName if it does not exist, overwrite it with
 # an empty file if it does exist. - JN
+# Does this make more sense than 'rm' + 'touch' which might be clearer?
 printf "" >! fileName2genomeName
+
+# VAR
+set FsplitPrefix="fsplit"
+set FilenameToGenomeName="fileName2genomeName"
+
+# This might be easier in bash?  Faster in awk? - JN
+# 95% solution in awk: awk -F'\011' -v c=0 '{print c, $2, $1 ; print "fsplit" c, $2 >> fileName2genomeName ; c=c+1}' fasta_list
+# Above command uses spaces instead of tabs TODO - JN
 while ($count < $num_seqs)
+	# VAR - This way references are consistent throughout the loop.
+	set FsplitName="$FsplitPrefix$count"
+
 	# fasta_list is in '<file> <name> [<additional data?>*]' pairs, one per 
 	# line.  Extract file and name from the current line. - JN
 	set name=`awk -F'\011' -v c="$count" 'FNR==c+1 {print $2}' fasta_list`
@@ -253,6 +287,12 @@ while ($count < $num_seqs)
 	@ count ++
 end
 
+
+# VAR
+set KMersAllPrefix="kmers_all"
+set UnsortedKMersPrefix="unsortedkmers"
+set Jellyfish="$kSNP/jellyfish"
+
 # This test for k-mer size less than 32 may be an artifact of previous versions
 # of jellyfish that could not handle k-mer sizes greater than 31.  That is no
 # longer true; revisit? TODO - JN
@@ -261,7 +301,13 @@ if ( $k <= 31  ) then
 	date
 	echo "Running jellyfish to find k-mers"
 	# Loop over the files in the standard naming scheme (prefix + count) - JN
+	# Would be better if we pulled a list of actual files we are working 
+	# on from above fileName2genomeName? - JN
 	foreach f (fsplit*[0-9])
+		# VAR
+		set KMersAll="$KMersAllPrefix.$f"
+		set UnsortedKMers="$UnsortedKMersPrefix.$f"
+
 		# Check to see if kmers_all.<filename> exists and has size > 0.  If so,
 		# we have probably already done this work and can skip to the next? - JN	    
 		if !(-s kmers_all.$f) then
@@ -274,6 +320,8 @@ if ( $k <= 31  ) then
 			printf "" >! unsortedkmers.$f
 			# It is possible that due to a bug, this code is never executed because
 			# there are no Jelly.<filename>_... files, only Jelly.<filename>. TODO - JN
+			# There is the distinct possibility that Jellyfish can do either, and in
+			# the case with _'s, the data is partitioned but unsorted...? - JN
 			foreach i (Jelly."$f"_*)
 				# Output the corresponding dump in columnar format.
 				$kSNP/jellyfish dump -c $i  >> unsortedkmers."$f"
@@ -295,10 +343,20 @@ endif
 # SA tool clearly a drop-in replacement for Jellyfish.  Produces unsorted count
 # data also, in non-canonical form (must be canonicalized and sorted by perl
 # helper script). - JN
+
+# VAR
+set SA="$kSNP/sa"
+set RCKMerFreqs="$kSNP/rc_kmer_freqs3"
+
+# Also, this test seems redundant; shouldn't this be an 'else' to the previous
+# 'if'? - JN
 if  ($k>31 ) then
 	echo "Running sa to find k-mers"
 	date
 	foreach f (fsplit*[0-9])
+		# VAR
+		set CountsFile="$f.counts"
+
 		# Check to see if kmers_all.<filename> exists and has size > 0	    
 		if !(-s kmers_all.$f) then
 			$kSNP/sa $f $k 0
@@ -315,10 +373,20 @@ endif
 ### Transform: Reduce # of entries by filtering out low frequency elements per
 ###   specified criteria (arbitrary?  If not, then what rationale? TODO) - JN
 
+# VAR
+set FrequencyPrefix="freq"
+set GetQuantile="$kSNP/get_quantile3"
+set KMersPrefix="kmers"
+
 # Remove kmers that occur less than freq=average of median and mean kmer frequency for that genome.  
 echo "Removing kmers that occur less than freq=average of median and mean kmer frequency for that genome."
 date
 foreach f (fsplit*[0-9])
+	# VAR
+	set Frequency="$FrequencyPrefix.$f"
+	set KMersAll="$KMersAllPrefix.$f"
+	set KMers="$KMersPrefix.$f"
+
 	awk '{print $2}' kmers_all.$f > ! freq.$f
 	# This runs a perl program over the frequency list to calculate the mean,
 	# the median, and then the average of the two rounded to an integer. - JN
@@ -341,11 +409,22 @@ rm freq.*
 ###   prefix above, and the resulting k-mers are simply listed in the output
 ###   file (.conflictsDeleted) in sorted order.
 
+# VAR
+set DirPrefix="Dir"
+set SubsetMers="$kSNP/subset_mers3"
+set RemoveConflicts_Commands="cmds_remove_conflicting" # Note that this is likely a temp file.
+set DeleteAlleleConflicts="$kSNP/delete_allele_conflicts3"
+
+# Candidate for rewriting in bash + parallel. - JN
 
 # Remove kmers from a genome if there are conflicting alleles in that genome 
 echo "Removing conflicting kmers from each genome with conflicting alleles"
 date
 foreach f (fsplit*)
+	# VAR
+	set GenomeDirectory="$DirPrefix.$f"
+	set KMers="../$KMersPrefix.$f" # This should be a full instead of relative path?
+
 	echo $f
 	mkdir Dir.$f
 	cd Dir.$f
@@ -367,6 +446,11 @@ date
 ### Output: X*.mers
 ### Transform: Merge sort across fsplit<N> groups, with removal of duplicates.
 
+# VAR
+set SubsetMerList="$kSNP/subset_mer_list3"
+set MerList="mer_list"
+set Sort_Commands="cmds_sort" # Note this is likely a temp file.
+
 echo "Merged sorted kmer files and remove duplicates"
 date
 $kSNP/subset_mer_list3 > ! mer_list
@@ -378,6 +462,13 @@ $kSNP/parallel_commands3 $num_cpus cmds_sort
 echo "Finished merging kmers across genomes"
 date
 
+# VAR
+set SubsetSNPsAll="$kSNP/subset_SNPs_all3"
+set SNPsAllSuffix="SNPs_all"
+set SNPsToFastaQuery="$kSNP/SNPs2fastaQuery3"
+set SNPLociPrefix="SNP_loci"
+set SNPLociSuffix="fasta"
+
 ################################ NEW
 # Do not look for new SNPs, just find old ones from  -SNPs_all  input option
 if (  $?SNPs_all  ) then 
@@ -386,6 +477,10 @@ if (  $?SNPs_all  ) then
 	date
 	$kSNP/subset_SNPs_all3 "$SNPs_all"
 	foreach subset (`cat mer_list`)
+		# VAR
+		set SubsetSNPs="$subset.$SNPsAllSuffix"
+		set SubsetLoci="$SNPLociPrefix.$subset.$SNPLociSuffix"
+
 		if (-s $subset.SNPs_all) then
 			$kSNP/SNPs2fastaQuery3 $subset.SNPs_all >! SNP_loci.$subset.fasta 
 		endif
