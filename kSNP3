@@ -15,7 +15,7 @@ set kSNP=/usr/local/kSNP3
 
 
 if  ($#argv == 0)  then
-         printf "Usage: kSNP3 <options>\
+	printf "Usage: kSNP3 <options>\
 Options are the following: \
  -k <kmer_length> # required\n\
  -in <input_fastaFile_list>  # required file listing  full path location of each genome and the genome name, one line per genome, tab delimited between full path to genome fasta file in column 1 and genome name in column 2. This format allows multi-read,multi-chromosome, and multi-contig genomes, each genome in separate fasta. If multiple chromosomes are listed as separate fasta entries in a single genome file, positions and annotations are found for each gi number \n\
@@ -30,7 +30,7 @@ Options are the following: \
  -NJ # optional, calculate a neighbor joining tree\n\
  -vcf # optional, create a vcf file using the first genome specified in the -positions file as the reference genome\n\
  -all_annotations  # optional, annotate each locus exhaustively with all the annotations in any of the annotated genomes. Without this option it only provides the first annotation it comes to for a given locus, checking in the order genomes are listed in the -annotate file.\n"
-         exit
+	 exit
 endif 
 
 set DEBUG=0
