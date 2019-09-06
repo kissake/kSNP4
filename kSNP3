@@ -4,6 +4,7 @@
 
 # WHERE ARE ALL THE kSNP SCRIPTS?  
 # IF YOU INSTALLED kSNP ANYWHERE OTHER THAN /user/local THEN YOU MUST MODIFY THIS TO POINT TO THE DIRECTORY WHERE YOU HAVE INSTALLED kSNP SCRIPTS
+# Try to set this automatically from argv[0] (command path) - JN
 set kSNP=/usr/local/kSNP3
 #set kSNP=/g/g15/shea/kSNP3_Source
 
@@ -47,6 +48,13 @@ set annotate_list="nonexistent_file"
 set genbankFile="nonexistent_file"
 set all_annotations=0
 
+# Note: AddPaths expands the first argument if it is a pipe or if it is a full
+#   instead of relative path.  Otherwise, it prepends the second argument to
+#   the first with a unix / separating the two.
+# VAR
+set AddPaths="$kSNP/add_paths3"
+
+
 while ($#argv > 0)    
 	switch ($argv[1])
 	case -vcf: 
@@ -67,15 +75,18 @@ while ($#argv > 0)
 		breaksw
 	case -in:
 		shift
-		set fasta_list="$argv[1]"
+		set fasta_list = `$kSNP/add_paths3 "$argv[1]" "$thisDir"`
+		printf "fasta_list $fasta_list\n"
 		breaksw
 	case -outdir:
 		shift
-		set dir="$argv[1]"
+		set dir = `$kSNP/add_paths3 "$argv[1]" "$thisDir"`
+		printf "dir $dir\n"
 		breaksw
 	case -annotate:
 		shift
-		set annotate_list="$argv[1]"
+		set annotate_list = `$kSNP/add_paths3 "$argv[1]" "$thisDir"`
+		printf "annotate_list $annotate_list\n"
 		breaksw
 	case -all_annotations:
 		set all_annotations=1
@@ -86,7 +97,8 @@ while ($#argv > 0)
 		breaksw
 	case -genbank:
 		shift
-		set genbankFile="$argv[1]"
+		set genbankFile = `$kSNP/add_paths3 "$argv[1]" "$thisDir"`
+		printf "genbankFile $genbankFile\n"
 		breaksw
 	case -CPU:
 		shift
@@ -94,7 +106,8 @@ while ($#argv > 0)
 		breaksw
 	case -SNPs_all:
 		shift
-		set SNPs_all="$argv[1]"
+		set SNPs_all = `$kSNP/add_paths3 "$argv[1]" "$thisDir"`
+		printf "SNPs_all $SNPs_all\n"
 		breaksw
 	default:
 		shift
@@ -115,40 +128,6 @@ if (-f 'NameErrors.txt') then
 endif
 
 
-# TODO Should these below be moved up to the argument parsing section above? - JN
-# Initial thought is that yes, they should, even if it makes argument parsing
-# a longer section, and comments as to meaning should be added.
-
-# Note: AddPaths expands the first argument if it is a pipe or if it is a full
-#   instead of relative path.  Otherwise, it prepends the second argument to
-#   the first with a unix / separating the two.
-# VAR
-set AddPaths="$kSNP/add_paths3"
-if ($?dir) then 
-	set dir = `$kSNP/add_paths3 "$dir" "$thisDir"`
-	printf "dir $dir\n"
-endif
-
-if ($?fasta_list) then 
-	set fasta_list = `$kSNP/add_paths3 "$fasta_list" "$thisDir"`
-	printf "fasta_list $fasta_list\n"
-endif
-
-
-if ($?annotate_list) then 
-	set annotate_list = `$kSNP/add_paths3 "$annotate_list" "$thisDir"`
-	printf "annotate_list $annotate_list\n"
-endif
-
-if ($?genbankFile) then 
-	set genbankFile = `$kSNP/add_paths3 "$genbankFile" "$thisDir"`
-	printf "genbankFile $genbankFile\n"
-endif
-
-if ($?SNPs_all) then 
-	set SNPs_all = `$kSNP/add_paths3 "$SNPs_all" "$thisDir"`
-	printf "SNPs_all $SNPs_all\n"
-endif
 
 # This should be bundled into a 'log' type function for consistency of output.
 # Also, this will permit finer grained debug info? - JN
