@@ -583,9 +583,20 @@ if (  $?SNPs_all ) then
 endif
 # Maybe it makes sense to do a merge sort over just appending a bunch of things
 # and then sorting?  Not clear how long this is.  Example 1 is under 1M entries
-# and sorts in under 1 second. - JN
+# and sorts in under 1 second on my computer. - JN
 sort -u all_SNPs_unsorted >! all_SNPs_sorted
 # Cannot find this command: number_SNPs_all3 - JN
+# It exists in the binary distribution. - JN
+# Additional observations about this executable:  Written in perl, compiled to
+# binary using ActiveState's ActivePerl.  Takes a single commandline argument
+# (will bail, possibly after creating a spurious output file if missing), and
+# will create a file named <argument>_labelLoci as well as a COUNT_SNPs file.
+# Output in testingwas the same as the content of the COUNT_SNPs file. - JN
+# all_SNPs sorted to all_SNPs_sorted_labelLoci doesn't add any lines, does
+# seem to maintain sorting by the first column in the original file (kmers?), but
+# does NOT maintain sorting by subsequent columns.  Appears to:
+# separate distinct kmers with newlines, and apply a single sequential number
+# to each distinct kmer, prepending that number on each line that kmer appears.
 $kSNP/number_SNPs_all3 all_SNPs_sorted
 $kSNP/rename_from_table3 all_SNPs_sorted_labelLoci fileName2genomeName SNPs_all
 
@@ -986,7 +997,9 @@ if (-s annotate_list) then
 	echo "Finished SNP annotation."
 endif
 
-# Difference between ParAnn, and python ParAnn.py ? - TODO - JN
+# ParAnn is the compiled version of ParAnn.py, presumably.  Should be verified,
+# and the process for compiling should be determined.  Once this is understood,
+# perhaps a makefile for the binaries?  TODO - JN
 #run ParAnn
 $kSNP/ParAnn
 
