@@ -5,5 +5,6 @@ Notes:
  - Lots of filename construction.  I want to replace probably all of it.
  - Not enough comments.  Some of desire for more comments comes from lack of 
    understanding of the underlying concepts, but I don't think all of it does.
-
+ - Consider the option of using sqlite?  Probably contraindicated w/r/t usability
+   and debugability for the author, but might have some efficiency gains.
 
