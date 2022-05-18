@@ -5,8 +5,16 @@
 # WHERE ARE ALL THE kSNP SCRIPTS?  
 # IF YOU INSTALLED kSNP ANYWHERE OTHER THAN /user/local THEN YOU MUST MODIFY THIS TO POINT TO THE DIRECTORY WHERE YOU HAVE INSTALLED kSNP SCRIPTS
 # Try to set this automatically from argv[0] (command path) - JN
-set kSNP=/usr/local/kSNP3
+# Per the tcsh man page, :h can be appended to show only the "head"
+# (directory) from the "trailing" (filename) component.  $0 references
+# the command issued when invoking the script.  The requirement that
+# remains is that the other binaries continue to be co-located with
+# this script.
+
+set kSNP="$0:h"  # /usr/local/kSNP3/kSNP3 -> /usr/local/kSNP3
+#set kSNP=/usr/local/kSNP3
 #set kSNP=/g/g15/shea/kSNP3_Source
+
 
 ########################################################################
 
