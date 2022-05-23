@@ -1,0 +1,3 @@
+#!/bin/bash
+
+number_SNPs_all3.py "${@}"
