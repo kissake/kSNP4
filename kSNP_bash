@@ -1,5 +1,19 @@
-#!/bin/tcsh 
+#!/bin/sh
 #v3.92
+
+exit 0
+
+#############
+#############
+#
+# Code beyond this point has not yet been implemented in kSNP_bash; it is in Tcsh.
+#
+#############
+#############
+
+
+
+
 ########################################################################
 
 # WHERE ARE ALL THE kSNP SCRIPTS?  
@@ -32,8 +46,6 @@ set kSNP="$0:h"  # /usr/local/kSNP3/kSNP3 -> /usr/local/kSNP3
 #
 #############
 #############
-
-kSNP_bash "${@}"
 
 #############
 #############
