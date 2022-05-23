@@ -330,6 +330,7 @@ if ( $k <= 31  ) then
 			# there are no Jelly.<filename>_... files, only Jelly.<filename>. TODO - JN
 			# There is the distinct possibility that Jellyfish can do either, and in
 			# the case with _'s, the data is partitioned but unsorted...? - JN
+			# Note: Jellyfish can thread, but the threading option isn't used here TODO - JN
 			foreach i (Jelly."$f"_*)
 				# Output the corresponding dump in columnar format.
 				$kSNP/jellyfish dump -c $i  >> unsortedkmers."$f"
