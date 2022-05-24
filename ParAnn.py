@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 Description: Parses the the genbank_from_NCBI.gbk and SNPs_all files written by kSNP3
@@ -15,7 +15,7 @@ import re
 import time
 import resource #for determining peak memory used
 from Bio.Seq import Seq
-from Bio.Alphabet import generic_dna
+# from Bio.Alphabet import generic_dna  ## Removed from Bio module per: https://biopython.org/wiki/Alphabet
 #******************* FUNCTION DEFINITIONS *******************
 def findAA(locusSeq, SNPallele, SNPpos, start, end, strand, complement):
 	temp = locusSeq.split('.')
@@ -37,8 +37,8 @@ def findAA(locusSeq, SNPallele, SNPpos, start, end, strand, complement):
 	elif readingFrame == 2:
 		codon = theSeq[flankLen-1:flankLen+2]
 		peptideSeq = theSeq[flankLen-4:flankLen+8]
-	codon = Seq(codon, generic_dna)
-	peptideSeq = Seq(peptideSeq, generic_dna)
+	codon = Seq(codon)
+	peptideSeq = Seq(peptideSeq)
 	
 	RC = 'F' #don't reverse complement the codon or the peptideSeq
 	if (strand == 'R' and complement == 'F' ):  # or (strand == 'F' and complement == 'T')
@@ -55,7 +55,7 @@ def findAA(locusSeq, SNPallele, SNPpos, start, end, strand, complement):
 
 def getNewCodon(base,codon, readingframe, RC):
 	if RC == 'T':
-		base = Seq(base,generic_dna) #base is now a seq object
+		base = Seq(base) #base is now a seq object
 		base = base.reverse_complement()
 		base = str(base)
 	codonList = list(codon)
@@ -77,7 +77,7 @@ def getNewCodon(base,codon, readingframe, RC):
 	elif readingFrame == 2 and RC == 'T':
 		codonList[1] = base
 		newCodon = ''.join(codonList)
-	newCodon = Seq(newCodon, generic_dna)
+	newCodon = Seq(newCodon)
 	aa = newCodon.translate()
 
 	return(str(newCodon), str(aa))
