@@ -45,3 +45,17 @@ for line in snpFile.readlines():
         print("") # And output a divider.
 
     print("\t".join([str(snpNumber)]+args))
+
+###
+### Output to COUNT_SNPs
+###
+
+if len(sys.argv) > 1:
+    countsFile = open(sys.argv[1], "w")
+    countsFile.write("Number_SNPs: ")
+    # Should be 1 greater than the largest number output, which is the count 
+    # since our array is zero based.
+    countsFile.write(str(maxSnpNumber)) 
+    countsFile.write("\n")
+
+
