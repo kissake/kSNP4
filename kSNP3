@@ -582,6 +582,8 @@ foreach f (fsplit*)
 			# column being 'x', the 4th column being genome name from the file
 			# above, and the fifth column being blank (instead of from mummmer
 			# data).
+			# This seens to be non-functional based on behavior if mummer is
+			# missing - JN
 			awk -v genome=$genome '{print  $1 "\t" $2 "\tx\t" genome "\t" }' Dir.$f/SNPs >> all_SNPs_unsorted
 		endif
 	endif
