@@ -109,7 +109,7 @@ infoList = []
 
 
 #Get accession numbers and initialize
-INFILE = open(genbankFile, "rU")
+INFILE = open(genbankFile, "r")
 for line in INFILE:
 	line = line.rstrip()
 	if line.startswith('VERSION'):
@@ -117,7 +117,7 @@ for line in INFILE:
 		RefGenomesDict[temp[1]] = []
 INFILE.close()		
 
-INFILE = open(genbankFile, "rU")
+INFILE = open(genbankFile, "r")
 for line in INFILE:
 	line = line.rstrip()
 	if line.startswith('VERSION'):
@@ -141,7 +141,7 @@ for line in INFILE:
 				start = int(temp[0])
 				end = int(temp[1])		
 			while not re.search(r"/product", line):
-				line = INFILE.next()
+				line = INFILE.readline()
 				line = line.rstrip()
 			temp = line.split("\"")
 			product = temp[1]
@@ -153,8 +153,8 @@ endTime = time.time()
 usedTime = endTime - startTime
 
 ######################### parse the SNPs_all file and put info into SNPinfo list##########
-INFILE = open(SNPs_allFile, "rU")
-line = INFILE.next()  #skips the first line which is a blank
+INFILE = open(SNPs_allFile, "r")
+line = INFILE.readline()  #skips the first line which is a blank
 for line in INFILE:
 	line = line.rstrip()
 	if len(line) >0:  #if this is not a blank line
