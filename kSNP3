@@ -42,7 +42,7 @@ Options are the following: \
 	 exit
 endif 
 
-set DEBUG=0
+set DEBUG=1
 
 echo "Location of kSNP scripts: "
 echo "$kSNP"
@@ -950,6 +950,7 @@ mv -f tree_nodeLabel.* TemporaryFilesToDelete/.
 echo "Annotating SNPs."
 date
 
+# If we can find a way to cache this info, I think we should? - JN
 # Only get genbank file and annoate if there is positional information for some genomes, ie. annotate_list is not empty
 if (-s annotate_list) then 
 
@@ -967,7 +968,7 @@ if (-s annotate_list) then
 		endif
 	end
 	cat genbank_from_NCBI.gbk.* | grep -v BioProject  >! genbank_from_NCBI.gbk
-	rm genbank_from_NCBI.gbk.*
+	# rm genbank_from_NCBI.gbk.*
 
 
 	# The annotate_SNPs_from_genbankFiles3 is a complicated script; deserves review / commenting. TODO - JN
@@ -977,6 +978,7 @@ if (-s annotate_list) then
 		$kSNP/annotate_SNPs_from_genbankFiles3   -all $all_annotations 
 	endif
 
+	# WARNING: Annotation_summary is overwritten shortly by ParAnn.py XXX TODO - JN
 	printf "Num_NotAnnotatedRegion\tAnnotatedNotProtein\tNum_NonSynon\tNum_Synon\tNS/S\tNSfractionOfAnnotated\tNumLoci\tNum_InAnnotatedGenomes\tNum_NotInAnnotatedGenome\n" >! Annotation_summary
 	set i=SNP_annotations
 	set num_notInAnnotatedGenome=`grep  NotInAnnotatedGenome $i |  awk '  {print $1}' | sort -u | wc -l | awk '{print $1}'` 
