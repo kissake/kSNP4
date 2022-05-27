@@ -83,7 +83,7 @@ def getNewCodon(base,codon, readingframe, RC):
 	return(str(newCodon), str(aa))
 #********************** Main *************************
 outfileName = 'SNPs_all_annotated'
-summaryFile = 'Annotation_Summary'
+summaryFile = 'Annotation_summary'
 genbankFile = 'genbank_from_NCBI.gbk'
 SNPs_allFile = 'SNPs_all'
 RefGenomesDict = {} #key is accession number value is annoymous array of gene information
