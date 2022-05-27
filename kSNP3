@@ -902,7 +902,7 @@ $kSNP/find_unresolved_clusters3 tree.parsimony.tre >! unresolved_clusters
 date
 echo "Finding nodes"
 
-foreach t ( `cat tree_list1` ) 
+foreach t ( `cat tree_list1` )  # e.g. "parsimony
 	if (-s tree."$t".tre) then
 		# Opportunity to make this a subroutine?
 		$kSNP/label_tree_nodes3 tree.$t.tre   > ! tree_nodeLabel.$t.tre
@@ -960,16 +960,27 @@ if (-s annotate_list) then
 	# Get whole genome annotations from genbank, unfortunately you have to get the whole genbank file with sequence data, since the much smaller feature table does not have mature peptides making viral annotation useless with polyproteins only.
 	set count=0
 	printf "" >! headers.annotate_list
+	# For each genome we have requested annotation for,
 	foreach genome (`cat annotate_list`) 
 		set file_check=`grep -w  $genome fasta_list  | wc -l`
+		# If the genome is in fasta_list,
 		if ($file_check > 0 ) then
+			# Determine the file associated with this genome (Note that this is a file
+			# path on the local system to a fasta file that has header info that should
+			# lead us to the correct genbank file.
 			set file=`grep -w  $genome fasta_list  | awk -F'\011' '{print $1}'`
 			printf "$file\n"
+			# And get the genbank file corresponding (name it based on where this genome
+			# is in the annotate_list file... possibly if we name it based on the genome
+			# then we can reuse it more readily?)
 			$kSNP/get_genbank_file3 "$file" genbank_from_NCBI.gbk.$count
+			# Insert the name from annotate_list into the header line(s) from the fasta
+			# file, and append it to the headers.annotate_list file.
 			fgrep ">" "$file" | sed -e "s/^>/>$genome /" >> headers.annotate_list
 			@ count ++
 		endif
 	end
+	# Combine all downloaded genbank files into one.
 	cat genbank_from_NCBI.gbk.* | grep -v BioProject  >! genbank_from_NCBI.gbk
 	# rm genbank_from_NCBI.gbk.*
 
