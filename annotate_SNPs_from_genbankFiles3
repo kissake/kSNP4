@@ -311,7 +311,7 @@ sub annotate {
 	    #print "id: $id\n";
 	    #print "$pos\n";
 	    $allele{$fors{$sequence}{$name}{$pos}}=1;
-	    if ($pos ne "x"  && (defined %{$cds{$id}} || defined %{$other_annotation{$id}} )  ) {
+	    if ($pos ne "x"  && ( %{$cds{$id}} ||  %{$other_annotation{$id}} )  ) {
 		$any_with_annotation=1;
 	    }
 	}
@@ -321,7 +321,7 @@ sub annotate {
 	   my $subname= $fors2{$sequence}{$name}{$pos};
 	   my $id=$name."|".$subname;
 	   
-	   if ( defined %{$cds{$id}} ) { 
+	   if (  %{$cds{$id}} ) { 
 	       if ($redundant_annotations==1 || ($redundant_annotations==0 && scalar keys %CDS ==0) ) {
 	       # if (scalar keys %CDS ==0) {  # this means it only gets annotation from first id in sorted list, commenting out means it gets all annotations from all genomes. it will take longer, but give more complete annotations, like if genes have diff names in diff strains
 	       
@@ -429,7 +429,7 @@ sub annotate {
 		my $subname= $fors2{$sequence}{$name}{$pos};
 		my $id=$name."|".$subname;
 		
-		if (defined %{$other_annotation{$id}} ) {	
+		if ( %{$other_annotation{$id}} ) {	
 		    #  $other_annotation{$ID}{$start}{$end}{$primary_tag}{$tag}=$value;
 		    if ($pos =~ /(\d+)\s(R|F)/) {
 			$position=$1;
