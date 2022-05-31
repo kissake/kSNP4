@@ -97,7 +97,11 @@ docs: binaries/THE\ BSD\ OPENSOURCE\ LICENSE.pdf binaries/kSNP3.021\ User\ Guide
 
 # Note that packaging the source depends on the build and packaging of the binaries
 # being successful.
-kSNP3-source.zip: kSNP3.zip
+# I think this defaults to the revision currently checked out, minus local
+# revisions, and excludes the .hg directory to avoid sharing extra detail
+kSNP3.1_Source.zip: kSNP3.zip
+	hg archive --exclude ".hg*" --prefix kSNP3.1_Source $@
+
 
 # Build a different zip file depending on whether we are using a monolithic
 # perl binary.
