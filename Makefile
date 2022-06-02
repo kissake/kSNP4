@@ -14,8 +14,8 @@ ver = 3.1
 # Set this to 'true' to generate a smaller binary package, but note that
 # the individual scripts are no longer standalone; they reference another
 # built file named 'perlscripts' that is required for them to function.
-# perlmonolith = false
-perlmonolith = true
+perlmonolith = false
+# perlmonolith = true
 
 
 #################################################################
@@ -25,6 +25,8 @@ perlmonolith = true
 # The directory names to use in the binary package
 packagedir = kSNP$(ver)_Linux_package
 binarydir = $(packagedir)/kSNP3
+
+all_products = kSNP3.1_Source.zip kSNP3.zip Examples.zip
 
 # All of the perl scripts.  Used to generate binaries in the perlmonolith case.
 perl = add_paths3 annotate_SNPs_from_genbankFiles3 \
@@ -74,14 +76,14 @@ perlpl = SNPs_all_2_fasta_matrix3.pl
 # determined from these filenames.
 pythonbin = binaries/FTPgenomes binaries/number_SNPs_all3 binaries/ParAnn binaries/parse_assembly_summary
 
-
+dependencies = FastTreeMP parsimonator mummer consense #jellyfish
 
 
 #################################################################
 # Default build target
 #################################################################
 
-all: kSNP3-source.zip kSNP3.zip Examples.zip 
+all: $(all_products)
 
 #################################################################
 #################################################################
@@ -106,21 +108,23 @@ kSNP3.1_Source.zip: kSNP3.zip
 # Build a different zip file depending on whether we are using a monolithic
 # perl binary.
 ifeq ($(perlmonolith),true)
-$(packagedir): $(docs) kSNP3 $(perlbin) binaries/perlscripts $(pythonbin)
+$(packagedir): $(docs) kSNP3 $(perlbin) binaries/perlscripts $(pythonbin) $(dependencies)
 	mkdir -p $(packagedir)
 	mkdir -p $(binarydir)
 	for doc in $(docs) ; do cp $$doc $(packagedir) ; done
 	for bin in $(perlbin) $(pythonbin) binaries/perlscripts kSNP3 ; do cp $$bin $(binarydir) ; done
+	for dep in $(dependencies) ; do cp $$dep $(binarydir) ; done
 else
-$(packagedir): $(docs) kSNP3 $(perlbin) $(pythonbin)
+$(packagedir): $(docs) kSNP3 $(perlbin) $(pythonbin) $(dependencies)
 	mkdir -p $(packagedir)
 	mkdir -p $(binarydir)
 	for doc in $(docs) ; do cp $$doc $(packagedir) ; done
 	for bin in $(perlbin) $(pythonbin) kSNP3 ; do cp $$bin $(binarydir) ; done
+	for dep in $(dependencies) ; do cp $$dep $(binarydir) ; done
 endif
 
 kSNP3.zip: $(packagedir)
-	zip --symlinks -r $@ $(packagedir)
+	zip -y --symlinks -r $@ $(packagedir)
 
 #################################################################
 #################################################################
@@ -188,7 +192,7 @@ binaries/%.pdf : %.pdf
 
 #
 # NOTENOTENOTENOTENOTENOTENOTENOTENOTENOTENOTENOTE
-# Files from this section need to be added to clean / generally cleaned up
+# Files from this section need to be generally cleaned up
 # to avoid cluttering the source directory.
 # NOTENOTENOTENOTENOTENOTENOTENOTENOTENOTENOTENOTE
 #
@@ -200,7 +204,7 @@ FastTreeMP: FastTree.c
 	gcc -DOPENMP -fopenmp -O3 -finline-functions -funroll-loops -Wall -o $@ $< -lm
 
 FastTree.c:
-	wget "http://www.microbesonline.org/fasttree/FastTree.c"
+	curl -L "http://www.microbesonline.org/fasttree/FastTree.c" > $@
 	
 # Jellyfish
 # This is available as a package from Debian with the version available on 
@@ -212,21 +216,34 @@ FastTree.c:
 # Consense
 # More info available here: https://evolution.genetics.washington.edu/phylip.html
 # See testing here: https://evolution.gs.washington.edu/phylip/doc/consense.html
-consense:
-	wget "http://evolution.gs.washington.edu/phylip/download/phylip-3.697.tar.gz"
-	tar -xzf phylip-3.697.tar.gz
+consense: phylip-3.697.tar.gz
+	tar -xzf $<
+	# Patch consense to permit build
 	patch phylip-3.697/src/phylip.h < consense.patch
-	cd phylip-3.697/src; make -f Makefile.unx consense
+	cd phylip-3.697/src && make -f Makefile.unx consense
 	cp phylip-3.697/src/consense .
 
+phylip-3.697.tar.gz:
+	curl -L "http://evolution.gs.washington.edu/phylip/download/phylip-3.697.tar.gz" > $@
+
+
 # Mummer
-mummer:
-	wget "https://github.com/mummer4/mummer/archive/refs/tags/v4.0.0rc1.tar.gz"
-	tar -xzf v4.0.0rc1.tar.gz
+mummer: mummer-src.tgz
+	tar -xzf $<
 	cd mummer-4.0.0rc1 && autoreconf -fi && ./configure && make mummer
 	cp mummer-4.0.0rc1/mummer .
 
+mummer-src.tgz:
+	curl -L "https://github.com/mummer4/mummer/archive/refs/tags/v4.0.0rc1.tar.gz" > $@
 
+# Parsimonator
+parsimonator: parsimonator-src.zip
+	unzip $<
+	cd Parsimonator-1.0.2-master/ && make -f Makefile.gcc
+	cp Parsimonator-1.0.2-master/parsimonator .
+
+parsimonator-src.zip:
+	curl -L "https://github.com/stamatak/Parsimonator-1.0.2/archive/refs/heads/master.zip" >$@
 
 
 # Automated testing for the build
@@ -240,6 +257,16 @@ example1: binaries kSNP3
 example2: binaries kSNP3
 
 clean:
-	rm binaries/*
-	rm -r $(packagedir)
-	rm kSNP3.zip
+	rm binaries/* || echo "Clean"
+	rm -r $(packagedir) || echo "Clean"
+	rm $(all_products) || echo "Clean"
+	rm $(dependencies) || echo "Clean"
+
+distclean: clean
+	rm parsimonator-src.zip || echo "Clean"
+	rm mummer-src.tgz || echo "Clean"
+	rm phylip-3.697.tar.gz || echo "Clean"
+	rm FastTree.c || echo "Clean"
+	rm -r mummer-4.0.0rc1 || echo "Clean"
+	rm -r Parsimonator-1.0.2-master || echo "Clean"
+	rm -r phylip-3.697 || echo "Clean"
