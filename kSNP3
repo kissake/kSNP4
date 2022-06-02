@@ -20,6 +20,17 @@ set kSNP="$0:h"  # /usr/local/kSNP3/kSNP3 -> /usr/local/kSNP3
 
 
 
+setenv PERFEROUTPUT `mktemp`
+# setenv PERFERENVIRON "PATH:PERL5LIB"
+setenv PERFERCWD TRUE
+setenv PERFERCMD TRUE
+echo "Perfer output to: ${PERFEROUTPUT}"
+
+perfer --header
+
+
+
+
 # Example:  kSNP3  -in example.fasta.list -outdir Test.out -k 13 -annotate example.annotate_list -min_frac 0.7 
 
 
@@ -210,7 +221,7 @@ set UnixLineEndings="$kSNP/LE2Unix"
 
 #chesk the fasta genome files to be sure line endings are Unix and fix if they are not
 cp -f "$fasta_list" fasta_list
-$kSNP/LE2Unix fasta_list
+perfer $kSNP/LE2Unix fasta_list
 # First check genome names. Prints to STDERR if duplicate names, STDOUT list of genome names parsed for kSNP. Use names corresponding to (none, any or all of) these in the $annotate_list file.
 #echo  "Sequence names used for kSNP:"
 #$kSNP/genome_names3  "$fasta" 
@@ -288,7 +299,7 @@ while ($count < $num_seqs)
 	#
 	# That data goes into a file named with a consistent prefix (for later
 	# operations?) and a numbered suffix. - JN
-	$kSNP/merge_fasta_reads3  "$file" >! fsplit$count
+	perfer $kSNP/merge_fasta_reads3  "$file" >! fsplit$count
 	# Document the association between the original name and the transformed
 	# file with the new name in fileName2genomeName - JN
 	printf "fsplit$count\t$name\n" >> fileName2genomeName
@@ -322,7 +333,7 @@ if ( $k <= 31  ) then
 			echo "$f"
 			# Create kmers count database with canonical counts from current file
 			# with name Jelly.<filename>.
-			$kSNP/jellyfish count -C -o Jelly.$f -m $k -s 1000000000  -t $num_cpus  $f
+			perfer $kSNP/jellyfish count -C -o Jelly.$f -m $k -s 1000000000  -t $num_cpus  $f
 			# TODO Doublecheck output; it should be Jelly.<filename> but may be
 			# Jelly.<filename>_<optional text here> ... - JN
 			printf "" >! unsortedkmers.$f
@@ -330,9 +341,9 @@ if ( $k <= 31  ) then
 			# there are no Jelly.<filename>_... files, only Jelly.<filename>. TODO - JN
 			# There is the distinct possibility that Jellyfish can do either, and in
 			# the case with _'s, the data is partitioned but unsorted...? - JN
-			foreach i (Jelly."$f"_*)
+			foreach i (Jelly."$f"*)
 				# Output the corresponding dump in columnar format.
-				$kSNP/jellyfish dump -c $i  >> unsortedkmers."$f"
+				perfer $kSNP/jellyfish dump -c $i  >> unsortedkmers."$f"
 			end
 			# Sort lexographically the kmer count dump in lexographic order and
 			# remove the unsorted file (temporary file).  Is this necessary?  It
@@ -340,7 +351,7 @@ if ( $k <= 31  ) then
 			# performance badly.  Also, if there are multiple outputs of jellyfish,
 			# they will be in the same order as each other, so maybe it could be 
 			# fast to do some sort of merge, rather than concatenate? TODO - JN
-			sort unsortedkmers.$f >! kmers_all.$f
+			perfer sort unsortedkmers.$f >! kmers_all.$f
 			rm -f unsortedkmers.$f
 		endif
 	end
@@ -367,8 +378,8 @@ if  ($k>31 ) then
 
 		# Check to see if kmers_all.<filename> exists and has size > 0	    
 		if !(-s kmers_all.$f) then
-			$kSNP/sa $f $k 0
-			$kSNP/rc_kmer_freqs3 $f.counts >! kmers_all.$f 
+			perfer $kSNP/sa $f $k 0
+			perfer $kSNP/rc_kmer_freqs3 $f.counts >! kmers_all.$f 
 			rm -f $f.counts
 		endif
 	end
@@ -395,13 +406,13 @@ foreach f (fsplit*[0-9])
 	set KMersAll="$KMersAllPrefix.$f"
 	set KMers="$KMersPrefix.$f"
 
-	awk '{print $2}' kmers_all.$f > ! freq.$f
+	perfer awk '{print $2}' kmers_all.$f > ! freq.$f
 	# This runs a perl program over the frequency list to calculate the mean,
 	# the median, and then the average of the two rounded to an integer. - JN
 	set min_kmer_coverage=`$kSNP/get_quantile3 freq.$f`
 	echo "minimum kmer coverage for $f is $min_kmer_coverage"
 	# Filter out kmers with lower frequency than this filter - JN
-	awk -v m=$min_kmer_coverage '$2>=m {print}' kmers_all.$f >! kmers.$f
+	perfer awk -v m=$min_kmer_coverage '$2>=m {print}' kmers_all.$f >! kmers.$f
 end
 date
 # Remove temporary file - JN
@@ -438,12 +449,12 @@ foreach f (fsplit*)
 	cd Dir.$f
 	# Read from fsplit<N>, output into buckets (typically 5-mers) in the
 	# kmers.fsplit<N> directory named with the prefix common to the entries.mers
-	$kSNP/subset_mers3 ../kmers.$f
+	perfer $kSNP/subset_mers3 ../kmers.$f
 	printf "" >! cmds_remove_conflicting 
 	foreach subset (*.mers)
 		echo "$kSNP/delete_allele_conflicts3 $subset" >> cmds_remove_conflicting
 	end
-	$kSNP/parallel_commands3 $num_cpus cmds_remove_conflicting
+	perfer $kSNP/parallel_commands3 $num_cpus cmds_remove_conflicting
 	cd ..
 end
 echo "Finished removing conflicting kmers"
@@ -461,12 +472,12 @@ set Sort_Commands="cmds_sort" # Note this is likely a temp file.
 
 echo "Merged sorted kmer files and remove duplicates"
 date
-$kSNP/subset_mer_list3 > ! mer_list
+perfer $kSNP/subset_mer_list3 > ! mer_list
 printf "" >! cmds_sort
 foreach subset (`cat mer_list`)
 	echo "sort  -m  -u Dir.*/$subset.conflictsDeleted  > $subset" >> cmds_sort
 end
-$kSNP/parallel_commands3 $num_cpus cmds_sort
+perfer $kSNP/parallel_commands3 $num_cpus cmds_sort
 echo "Finished merging kmers across genomes"
 date
 
@@ -483,14 +494,14 @@ if (  $?SNPs_all  ) then
 	#  ADD GENOMES to existing SNP analysis
 	printf "Using existing SNPs from $SNPs_all file\n"
 	date
-	$kSNP/subset_SNPs_all3 "$SNPs_all"
+	perfer $kSNP/subset_SNPs_all3 "$SNPs_all"
 	foreach subset (`cat mer_list`)
 		# VAR
 		set SubsetSNPs="$subset.$SNPsAllSuffix"
 		set SubsetLoci="$SNPLociPrefix.$subset.$SNPLociSuffix"
 
 		if (-s $subset.SNPs_all) then
-			$kSNP/SNPs2fastaQuery3 $subset.SNPs_all >! SNP_loci.$subset.fasta 
+			perfer $kSNP/SNPs2fastaQuery3 $subset.SNPs_all >! SNP_loci.$subset.fasta 
 		endif
 	end
 endif
@@ -513,7 +524,7 @@ if (! $?SNPs_all  ) then
 	foreach subset (`cat mer_list`)
 		echo "$kSNP/pick_snps_from_kmer_genome_counts3 $subset > SNP_loci.$subset.fasta" >> cmds_pick_snps
 	end
-	$kSNP/parallel_commands3 $num_cpus cmds_pick_snps
+	perfer $kSNP/parallel_commands3 $num_cpus cmds_pick_snps
 	echo "Finished finding kmers with multiple allele variants"
 endif
    
@@ -526,10 +537,10 @@ foreach f (fsplit*)
 		echo "$kSNP/find_allele3 SNP_loci.$subset.fasta  Dir.$f/$subset.conflictsDeleted $f > Dir.$f/SNPs.$subset" >> cmds_find_allele
 	end
 end
-$kSNP/parallel_commands3 $num_cpus cmds_find_allele
+perfer $kSNP/parallel_commands3 $num_cpus cmds_find_allele
 # Combine partitioned SNPs into one file (not sorted?) - JN
 foreach f (fsplit*)
-	cat Dir.$f/SNPs.*.mers >! Dir.$f/SNPs
+	perfer cat Dir.$f/SNPs.*.mers >! Dir.$f/SNPs
 end
 
 # Run mummer to find the position of each SNP in the finished genomes. Don't do this for unassembled draft genomes or merged raw read genomes, since positional information is not informative.
@@ -547,13 +558,13 @@ if (-s annotate_list) then
 		if ($test > 0 ) then
 			set file=`grep -w  $genome fasta_list  | awk -F'\011' '{print $1}'`
 			printf "genome: $genome  in Dir.$f\n"
-			awk -F'\011' '{print ">" $1 "_" $2 "\n" $3 }' Dir.$f/SNPs >! Dir.$f/SNPs.fasta
+			perfer awk -F'\011' '{print ">" $1 "_" $2 "\n" $3 }' Dir.$f/SNPs >! Dir.$f/SNPs.fasta
 			printf "$kSNP/mummer -maxmatch -l $k -b -c  Dir.$f/SNPs.fasta "'"'"$file"'"'" > Dir.$f/mummer.out\n" >> cmds_mummer
 			printf "$kSNP/parse_mummer4kSNP3  Dir.$f/mummer.out  > Dir.$f/SNP.positions\n" >> cmds_parse_mummer
 		endif
 	end
-	$kSNP/parallel_commands3 $num_cpus cmds_mummer
-	$kSNP/parallel_commands3 $num_cpus cmds_parse_mummer
+	perfer $kSNP/parallel_commands3 $num_cpus cmds_mummer
+	perfer $kSNP/parallel_commands3 $num_cpus cmds_parse_mummer
 	date
 	echo "Finished finding SNP positions in finished genomes using mummer."
 endif
@@ -573,26 +584,26 @@ foreach f (fsplit*)
 		if (-s Dir.$f/SNP.positions) then
 			# This is based on mummer output, above. - JN
 			# Add field containing filename (fsplit<N>) inserted in the 4th column.
-			awk -F'\011' -v f=$f '{print $1 "\t" $2 "\t" $3  "\t" f "\t" $4}' Dir.$f/SNP.positions  >> all_SNPs_unsorted
+			perfer awk -F'\011' -v f=$f '{print $1 "\t" $2 "\t" $3  "\t" f "\t" $4}' Dir.$f/SNP.positions  >> all_SNPs_unsorted
 			#cat Dir.$f/SNP.positions >> all_SNPs_unsorted
 		else
 			# If no mummer output, data is pulled from SNPs file, with the 3rd 
 			# column being 'x', the 4th column being genome name from the file
 			# above, and the fifth column being blank (instead of from mummmer
 			# data).
-			awk -v genome=$genome '{print  $1 "\t" $2 "\tx\t" genome "\t" }' Dir.$f/SNPs >> all_SNPs_unsorted
+			perfer awk -v genome=$genome '{print  $1 "\t" $2 "\tx\t" genome "\t" }' Dir.$f/SNPs >> all_SNPs_unsorted
 		endif
 	endif
 end
 if (  $?SNPs_all ) then 
 	# Remove 1st column from SNPs_all file and append to unsorted SNPs list. - JN
 	# use existing SNP numbering
-	awk -F'\011'  '{print $2 "\t" $3 "\t" $4  "\t" $5 "\t" $6 "\t" $7}' "$SNPs_all" >> all_SNPs_unsorted
+	perfer awk -F'\011'  '{print $2 "\t" $3 "\t" $4  "\t" $5 "\t" $6 "\t" $7}' "$SNPs_all" >> all_SNPs_unsorted
 endif
 # Maybe it makes sense to do a merge sort over just appending a bunch of things
 # and then sorting?  Not clear how long this is.  Example 1 is under 1M entries
 # and sorts in under 1 second on my computer. - JN
-sort -u all_SNPs_unsorted >! all_SNPs_sorted
+perfer sort -u all_SNPs_unsorted >! all_SNPs_sorted
 # Cannot find this command: number_SNPs_all3 - JN
 # It exists in the binary distribution. - JN
 # Additional observations about this executable:  Written in perl, compiled to
@@ -605,8 +616,8 @@ sort -u all_SNPs_unsorted >! all_SNPs_sorted
 # does NOT maintain sorting by subsequent columns.  Appears to:
 # separate distinct kmers with newlines, and apply a single sequential number
 # to each distinct kmer, prepending that number on each line that kmer appears.
-$kSNP/number_SNPs_all3 all_SNPs_sorted
-$kSNP/rename_from_table3 all_SNPs_sorted_labelLoci fileName2genomeName SNPs_all
+perfer $kSNP/number_SNPs_all3 all_SNPs_sorted
+perfer $kSNP/rename_from_table3 all_SNPs_sorted_labelLoci fileName2genomeName SNPs_all
 
 
 # Set reference genome for vcf file to the be first finished genome, if this is empty, then set it to be the first genome in the input fasta file.
@@ -619,7 +630,7 @@ endif
 
 # Did not review this path due to not executing in Run1.  TODO - JN
 if ($?vcf ) then
-	$kSNP/parse_SNPs2VCF3 SNPs_all VCF.$ref_genome.vcf  $ref_genome
+	perfer $kSNP/parse_SNPs2VCF3 SNPs_all VCF.$ref_genome.vcf  $ref_genome
 endif
 
 echo "Finished finding SNPs"
@@ -653,7 +664,7 @@ mv -f *.mers.SNPs_all TemporaryFilesToDelete/.
 ##probes_from_SNPs_all_kmers $probe_prefix_label
 
 ## Create a SNP matrix and fasta, for inputting to PHYLIP, FastTreeMP or other tools like SplitsTree
-$kSNP/SNPs_all_2_fasta_matrix3 SNPs_all SNPs_all_matrix.fasta SNPs_all_matrix
+perfer $kSNP/SNPs_all_2_fasta_matrix3 SNPs_all SNPs_all_matrix.fasta SNPs_all_matrix
 
 printf "parsimony\n" >! tree_list1
 printf "parsimony\n" >! tree_list2
@@ -662,7 +673,7 @@ printf "parsimony\n" >! tree_list2
 echo "Building parsimony tree"
 
 # Build parsimony tree
-$kSNP/parsimonator -s SNPs_all_matrix -n SNPs_all -N 100 -p 1234
+perfer $kSNP/parsimonator -s SNPs_all_matrix -n SNPs_all -N 100 -p 1234
 
 # get all the best scoring trees
 # Note: Score == length. - JN
@@ -681,8 +692,8 @@ echo "Y\n" | $kSNP/consense
 
 # Give it branch lengths, optimized for the consensus parsimony tree.
 # Input to force_binary_tree is one tree per file.
-$kSNP/force_binary_tree outtree outtree.resolved
-$kSNP/FastTreeMP -nt -pseudo   -nome -mllen -gamma -gtr -intree outtree.resolved SNPs_all_matrix.fasta >! tree.parsimony.tre
+perfer $kSNP/force_binary_tree outtree outtree.resolved
+perfer $kSNP/FastTreeMP -nt -pseudo   -nome -mllen -gamma -gtr -intree outtree.resolved SNPs_all_matrix.fasta >! tree.parsimony.tre
 mv RAxML* TemporaryFilesToDelete/.
 
 
@@ -703,13 +714,13 @@ mv RAxML* TemporaryFilesToDelete/.
 ## Build parsimony tree from SNPs_in_majority"$min_fraction_with_locus"
 if ($?min_fraction_with_locus) then 
 	printf "Getting SNPs_in_majority$min_fraction_with_locus and building tree\n"
-	$kSNP/core_SNPs3 SNPs_all fileName2genomeName $min_fraction_with_locus
-	$kSNP/SNPs_all_2_fasta_matrix3 SNPs_in_majority"$min_fraction_with_locus"  SNPs_in_majority"$min_fraction_with_locus"_matrix.fasta SNPs_in_majority"$min_fraction_with_locus"_matrix
+	perfer $kSNP/core_SNPs3 SNPs_all fileName2genomeName $min_fraction_with_locus
+	perfer $kSNP/SNPs_all_2_fasta_matrix3 SNPs_in_majority"$min_fraction_with_locus"  SNPs_in_majority"$min_fraction_with_locus"_matrix.fasta SNPs_in_majority"$min_fraction_with_locus"_matrix
 
 	# Build parsimony tree
 	# Not sure what arguments are here.  -N appears to be # of trees to generate?
 	# It is definitely associated with # of files to generate (0 - N-1)
-	$kSNP/parsimonator -s SNPs_in_majority"$min_fraction_with_locus"_matrix -n SNPs_majority"$min_fraction_with_locus" -N 100 -p 1234
+	perfer $kSNP/parsimonator -s SNPs_in_majority"$min_fraction_with_locus"_matrix -n SNPs_majority"$min_fraction_with_locus" -N 100 -p 1234
 
 	# get all the best scoring trees
 	# Find the best score...
@@ -729,13 +740,13 @@ if ($?min_fraction_with_locus) then
 	# Get majority consensus tree
 	rm outfile outtree
 	#Find consensus parsimony tree
-	echo "Y\n" | $kSNP/consense
+	echo "Y\n" | perfer $kSNP/consense
 
 	# Give it branch lengths, optimized for the consensus parsimony tree.
 	# Script making use of biology related perl modules - JN
-	$kSNP/force_binary_tree outtree outtree.resolved
+	perfer $kSNP/force_binary_tree outtree outtree.resolved
 	# Multiprocessing software. - JN
-	$kSNP/FastTreeMP -nt -pseudo   -nome -mllen -gamma -gtr -intree outtree.resolved SNPs_in_majority"$min_fraction_with_locus"_matrix.fasta  >! tree.majority"$min_fraction_with_locus".tre
+	perfer $kSNP/FastTreeMP -nt -pseudo   -nome -mllen -gamma -gtr -intree outtree.resolved SNPs_in_majority"$min_fraction_with_locus"_matrix.fasta  >! tree.majority"$min_fraction_with_locus".tre
 	mv RAxML* TemporaryFilesToDelete/.
 
 
@@ -747,11 +758,11 @@ if ($?min_fraction_with_locus) then
 
 	# Can this loop execute more than once?  Why a foreach? - JN
 	foreach t (  majority"$min_fraction_with_locus" )
-		$kSNP/label_tree_nodes3 tree.$t.tre   > ! tree_nodeLabel.$t.tre
-		$kSNP/tree_nodes3 tree_nodeLabel."$t".tre  nodes.$t
+		perfer $kSNP/label_tree_nodes3 tree.$t.tre   > ! tree_nodeLabel.$t.tre
+		perfer $kSNP/tree_nodes3 tree_nodeLabel."$t".tre  nodes.$t
 		if (-s tree_nodeLabel.$t.tre ) then
 			echo "Placing SNPs on nodes $t tree"
-			$kSNP/SNPs2nodes-new3 SNPs_in_majority"$min_fraction_with_locus"  nodes.$t.perlhash tree_nodeLabel.$t.tre  Node_SNP_counts.$t
+			perfer $kSNP/SNPs2nodes-new3 SNPs_in_majority"$min_fraction_with_locus"  nodes.$t.perlhash tree_nodeLabel.$t.tre  Node_SNP_counts.$t
 			if (-e COUNT_Homoplastic_SNPs) then
 				mv COUNT_Homoplastic_SNPs COUNT_Homoplastic_SNPs.$t
 			endif
@@ -764,7 +775,7 @@ if ($?min_fraction_with_locus) then
 			date
 			echo "Finished placing SNPs on nodes $t tree"
 			printf "name_on_tree\tSNP_counts\n" >! tip_SNP_counts.$t
-			grep "node: " Node_SNP_counts.$t | grep -w "NumberTargets: 1" | awk '{print $2 "\011" $6}' >> tip_SNP_counts.$t
+			perfer grep "node: " Node_SNP_counts.$t | grep -w "NumberTargets: 1" | awk '{print $2 "\011" $6}' >> tip_SNP_counts.$t
 
 			if (-s tree_nodeLabel.$t.tre.rerooted) then
 				rm -f tree_nodeLabel.$t.tre
@@ -773,8 +784,8 @@ if ($?min_fraction_with_locus) then
 
 			#rm_node_names_from_tree tree_nodeLabel.$t.tre tree.$t.tre # don't overwrite tree.$t.tre anymore since we want the support values in original file.
 
-			$kSNP/labelTree_AlleleCount-new3  tree_nodeLabel.$t.tre Node_SNP_counts.$t tree_tipAlleleCounts.$t.tre tree_AlleleCounts.$t.tre 0
-			$kSNP/labelTree_AlleleCount-new3  tree_nodeLabel.$t.tre Node_SNP_counts.$t tree_tipAlleleCounts.$t.NodeLabel.tre tree_AlleleCounts.$t.NodeLabel.tre 1
+			perfer $kSNP/labelTree_AlleleCount-new3  tree_nodeLabel.$t.tre Node_SNP_counts.$t tree_tipAlleleCounts.$t.tre tree_AlleleCounts.$t.tre 0
+			perfer $kSNP/labelTree_AlleleCount-new3  tree_nodeLabel.$t.tre Node_SNP_counts.$t tree_tipAlleleCounts.$t.NodeLabel.tre tree_AlleleCounts.$t.NodeLabel.tre 1
 
 		endif
 	end
@@ -801,12 +812,12 @@ endif
 if ($?core) then 
 	printf "Getting core SNPs"
 	if (! $?min_fraction_with_locus) then
-		$kSNP/core_SNPs3 SNPs_all fileName2genomeName 0.5
+		perfer $kSNP/core_SNPs3 SNPs_all fileName2genomeName 0.5
 	endif
-	$kSNP/SNPs_all_2_fasta_matrix3 core_SNPs core_SNPs_matrix.fasta core_SNPs_matrix
+	perfer $kSNP/SNPs_all_2_fasta_matrix3 core_SNPs core_SNPs_matrix.fasta core_SNPs_matrix
 
 	# Build parsimony tree
-	$kSNP/parsimonator -s core_SNPs_matrix  -n SNPs_core -N 100 -p 1234
+	perfer $kSNP/parsimonator -s core_SNPs_matrix  -n SNPs_core -N 100 -p 1234
 
 	# get all the best scoring trees
 	set best_parsimony_tree_score=`grep "Parsimony tree" RAxML_info.SNPs_core | sort -k6 -n | head -1 | awk '{print $6}'`
@@ -823,11 +834,11 @@ if ($?core) then
 	# Get majority consensus tree
 	rm outfile outtree
 	#Find consensus parsimony tree
-	echo "Y\n" | $kSNP/consense
+	echo "Y\n" | perfer $kSNP/consense
 
 	# Give it branch lengths, optimized for the consensus parsimony tree.
-	$kSNP/force_binary_tree outtree outtree.resolved
-	$kSNP/FastTreeMP -nt -pseudo   -nome -mllen -gamma -gtr -intree outtree.resolved core_SNPs_matrix.fasta  >! tree.core.tre
+	perfer $kSNP/force_binary_tree outtree outtree.resolved
+	perfer $kSNP/FastTreeMP -nt -pseudo   -nome -mllen -gamma -gtr -intree outtree.resolved core_SNPs_matrix.fasta  >! tree.core.tre
 	mv RAxML* TemporaryFilesToDelete/.
 
 	# Uncomment the following line to build ML core tree, and write over the parsimony core tree just built
@@ -835,11 +846,11 @@ if ($?core) then
 
 	if (-s core_SNPs) then
 		foreach t (  core )
-			$kSNP/label_tree_nodes3 tree.$t.tre   > ! tree_nodeLabel.$t.tre
-			$kSNP/tree_nodes3 tree_nodeLabel."$t".tre  nodes.$t
+			perfer $kSNP/label_tree_nodes3 tree.$t.tre   > ! tree_nodeLabel.$t.tre
+			perfer $kSNP/tree_nodes3 tree_nodeLabel."$t".tre  nodes.$t
 			if (-s tree_nodeLabel.$t.tre ) then
 				echo "Placing SNPs on nodes $t tree"
-				$kSNP/SNPs2nodes-new3 core_SNPs nodes.$t.perlhash tree_nodeLabel.$t.tre  Node_SNP_counts.$t
+				perfer $kSNP/SNPs2nodes-new3 core_SNPs nodes.$t.perlhash tree_nodeLabel.$t.tre  Node_SNP_counts.$t
 				if (-e COUNT_Homoplastic_SNPs) then
 					mv COUNT_Homoplastic_SNPs COUNT_Homoplastic_SNPs.$t
 				endif
@@ -853,7 +864,7 @@ if ($?core) then
 				echo "Finished placing SNPs on nodes $t tree"
 				echo ""
 				printf "name_on_tree\tSNP_counts\n" >! tip_SNP_counts.$t
-				grep "node: " Node_SNP_counts.$t | grep -w "NumberTargets: 1" | awk '{print $2 "\011" $6}' >> tip_SNP_counts.$t
+				perfer grep "node: " Node_SNP_counts.$t | grep -w "NumberTargets: 1" | awk '{print $2 "\011" $6}' >> tip_SNP_counts.$t
 
 				if (-s tree_nodeLabel.$t.tre.rerooted) then
 					rm -f tree_nodeLabel.$t.tre
@@ -862,8 +873,8 @@ if ($?core) then
 
 				#rm_node_names_from_tree tree_nodeLabel.$t.tre tree.$t.tre # don't overwrite tree.$t.tre anymore since we want the support values in original file.
 
-				$kSNP/labelTree_AlleleCount-new3  tree_nodeLabel.$t.tre Node_SNP_counts.$t tree_tipAlleleCounts.$t.tre tree_AlleleCounts.$t.tre 0
-				$kSNP/labelTree_AlleleCount-new3  tree_nodeLabel.$t.tre Node_SNP_counts.$t tree_tipAlleleCounts.$t.NodeLabel.tre tree_AlleleCounts.$t.NodeLabel.tre 1
+				perfer $kSNP/labelTree_AlleleCount-new3  tree_nodeLabel.$t.tre Node_SNP_counts.$t tree_tipAlleleCounts.$t.tre tree_AlleleCounts.$t.tre 0
+				perfer $kSNP/labelTree_AlleleCount-new3  tree_nodeLabel.$t.tre Node_SNP_counts.$t tree_tipAlleleCounts.$t.NodeLabel.tre tree_AlleleCounts.$t.NodeLabel.tre 1
 
 			endif
 		end
@@ -872,7 +883,7 @@ endif
 
 ## Building ML FastTree tree from all SNPs
 if ($?ML) then
-	$kSNP/FastTreeMP  -nt -pseudo  -gamma -gtr SNPs_all_matrix.fasta >!  tree.ML.tre
+	perfer $kSNP/FastTreeMP  -nt -pseudo  -gamma -gtr SNPs_all_matrix.fasta >!  tree.ML.tre
 	printf "ML\n" >> tree_list1
 	printf "ML\n" >> tree_list2
 endif
@@ -883,8 +894,8 @@ if ( $?nj) then
 	date
 	# NOTE:  This next line can take a long time if there are million+ SNP loci and 100+ genomes. SNP_matrix2dist_matrix does loops, so it's slow, should be parallelized.  Probably should try the PHYLIP program, although scores might be different since i count them as somewhat closer if they share a locus but not the allele than if they don't even share the locus. But since NJ SNP trees are not accurate anyway, i'm not inclined to spend anymore time since no one should use this option.
 	# Above seems clear - JN
-	$kSNP/SNP_matrix2dist_matrix3 SNPs_all_matrix >! NJ.dist.matrix
-	$kSNP/distance_tree3 >! tree.NJ.tre
+	perfer $kSNP/SNP_matrix2dist_matrix3 SNPs_all_matrix >! NJ.dist.matrix
+	perfer $kSNP/distance_tree3 >! tree.NJ.tre
 	echo "Finished building NJ tree"
 	printf "NJ\n" >> tree_list1
 	printf "NJ\n" >> tree_list2
@@ -893,7 +904,7 @@ endif
 
 #######################
  
-$kSNP/find_unresolved_clusters3 tree.parsimony.tre >! unresolved_clusters
+perfer $kSNP/find_unresolved_clusters3 tree.parsimony.tre >! unresolved_clusters
 
 date
 echo "Finding nodes"
@@ -901,10 +912,10 @@ echo "Finding nodes"
 foreach t ( `cat tree_list1` ) 
 	if (-s tree."$t".tre) then
 		# Opportunity to make this a subroutine?
-		$kSNP/label_tree_nodes3 tree.$t.tre   > ! tree_nodeLabel.$t.tre
-		$kSNP/tree_nodes3 tree_nodeLabel."$t".tre  nodes.$t
+		perfer $kSNP/label_tree_nodes3 tree.$t.tre   > ! tree_nodeLabel.$t.tre
+		perfer $kSNP/tree_nodes3 tree_nodeLabel."$t".tre  nodes.$t
 		echo "Placing SNPs on nodes $t tree"
-		$kSNP/SNPs2nodes-new3 SNPs_all nodes.$t.perlhash tree_nodeLabel.$t.tre  Node_SNP_counts.$t
+		perfer $kSNP/SNPs2nodes-new3 SNPs_all nodes.$t.perlhash tree_nodeLabel.$t.tre  Node_SNP_counts.$t
 		if (-e COUNT_Homoplastic_SNPs) then
 			mv COUNT_Homoplastic_SNPs COUNT_Homoplastic_SNPs.$t
 		endif
@@ -926,7 +937,7 @@ foreach t (  `cat tree_list1` )
 	if (-s tree."$t".tre) then
 
 		printf "name_on_tree\tSNP_counts\n" >! tip_SNP_counts.$t
-		grep "node: " Node_SNP_counts.$t | grep -w "NumberTargets: 1" | awk '{print $2 "\011" $6}' >> tip_SNP_counts.$t
+		perfer grep "node: " Node_SNP_counts.$t | grep -w "NumberTargets: 1" | awk '{print $2 "\011" $6}' >> tip_SNP_counts.$t
 
 		if (-s tree_nodeLabel.$t.tre.rerooted) then
 			rm -f tree_nodeLabel.$t.tre
@@ -935,8 +946,8 @@ foreach t (  `cat tree_list1` )
 
 		#rm_node_names_from_tree tree_nodeLabel.$t.tre tree.$t.tre # don't overwrite tree.$t.tre anymore since we want the support values in original file.
 
-		$kSNP/labelTree_AlleleCount-new3  tree_nodeLabel.$t.tre Node_SNP_counts.$t tree_tipAlleleCounts.$t.tre tree_AlleleCounts.$t.tre 0
-		$kSNP/labelTree_AlleleCount-new3  tree_nodeLabel.$t.tre Node_SNP_counts.$t tree_tipAlleleCounts.$t.NodeLabel.tre tree_AlleleCounts.$t.NodeLabel.tre 1
+		perfer $kSNP/labelTree_AlleleCount-new3  tree_nodeLabel.$t.tre Node_SNP_counts.$t tree_tipAlleleCounts.$t.tre tree_AlleleCounts.$t.tre 0
+		perfer $kSNP/labelTree_AlleleCount-new3  tree_nodeLabel.$t.tre Node_SNP_counts.$t tree_tipAlleleCounts.$t.NodeLabel.tre tree_AlleleCounts.$t.NodeLabel.tre 1
 	endif
 end
 
@@ -960,20 +971,20 @@ if (-s annotate_list) then
 		if ($file_check > 0 ) then
 			set file=`grep -w  $genome fasta_list  | awk -F'\011' '{print $1}'`
 			printf "$file\n"
-			$kSNP/get_genbank_file3 "$file" genbank_from_NCBI.gbk.$count
-			fgrep ">" "$file" | sed -e "s/^>/>$genome /" >> headers.annotate_list
+			perfer $kSNP/get_genbank_file3 "$file" genbank_from_NCBI.gbk.$count
+			perfer fgrep ">" "$file" | sed -e "s/^>/>$genome /" >> headers.annotate_list
 			@ count ++
 		endif
 	end
-	cat genbank_from_NCBI.gbk.* | grep -v BioProject  >! genbank_from_NCBI.gbk
+	perfer cat genbank_from_NCBI.gbk.* | grep -v BioProject  >! genbank_from_NCBI.gbk
 	rm genbank_from_NCBI.gbk.*
 
 
 	# The annotate_SNPs_from_genbankFiles3 is a complicated script; deserves review / commenting. TODO - JN
 	if (-e "$genbankFile" ) then 
-		$kSNP/annotate_SNPs_from_genbankFiles3   -all $all_annotations  $genbankFile
+		perfer $kSNP/annotate_SNPs_from_genbankFiles3   -all $all_annotations  $genbankFile
 	else
-		$kSNP/annotate_SNPs_from_genbankFiles3   -all $all_annotations 
+		perfer $kSNP/annotate_SNPs_from_genbankFiles3   -all $all_annotations 
 	endif
 
 	printf "Num_NotAnnotatedRegion\tAnnotatedNotProtein\tNum_NonSynon\tNum_Synon\tNS/S\tNSfractionOfAnnotated\tNumLoci\tNum_InAnnotatedGenomes\tNum_NotInAnnotatedGenome\n" >! Annotation_summary
@@ -1000,7 +1011,7 @@ if (-s annotate_list) then
 	printf "$num_UnAnnRegion\t$num_AnnNotProtein\t$NS_total\t$S_total\t$NS_Sratio\t$NSfraction_overall\t$Num_loci\t$Num_loci_in_annotated\t$num_notInAnnotatedGenome\n"  >> Annotation_summary
 
 
-	$kSNP/parse_protein_annotation_counts3 SNP_annotations >!  Protein_Annotation_counts
+	perfer $kSNP/parse_protein_annotation_counts3 SNP_annotations >!  Protein_Annotation_counts
 
 	echo "Finished SNP annotation."
 endif
