@@ -182,6 +182,52 @@ binaries/%.pdf : %.pdf
 	cp "$<" "$@"
 
 
+#################################################################
+# DEPENDENCIES
+#################################################################
+
+#
+# NOTENOTENOTENOTENOTENOTENOTENOTENOTENOTENOTENOTE
+# Files from this section need to be added to clean / generally cleaned up
+# to avoid cluttering the source directory.
+# NOTENOTENOTENOTENOTENOTENOTENOTENOTENOTENOTENOTE
+#
+
+
+# FastTreeMP
+# See: http://www.microbesonline.org/fasttree/
+FastTreeMP: FastTree.c
+	gcc -DOPENMP -fopenmp -O3 -finline-functions -funroll-loops -Wall -o $@ $< -lm
+
+FastTree.c:
+	wget "http://www.microbesonline.org/fasttree/FastTree.c"
+	
+# Jellyfish
+# This is available as a package from Debian with the version available on 
+# GitHub here: https://github.com/gmarcais/Jellyfish/releases/tag/v2.3.0
+# It is also available in binary form from GitHub, as well as source.  The
+# source doesn't build for me, so punting on rebuilding something that we can
+# get more easily two other ways.
+
+# Consense
+# More info available here: https://evolution.genetics.washington.edu/phylip.html
+# See testing here: https://evolution.gs.washington.edu/phylip/doc/consense.html
+consense:
+	wget "http://evolution.gs.washington.edu/phylip/download/phylip-3.697.tar.gz"
+	tar -xzf phylip-3.697.tar.gz
+	patch phylip-3.697/src/phylip.h < consense.patch
+	cd phylip-3.697/src; make -f Makefile.unx consense
+	cp phylip-3.697/src/consense .
+
+# Mummer
+mummer:
+	wget "https://github.com/mummer4/mummer/archive/refs/tags/v4.0.0rc1.tar.gz"
+	tar -xzf v4.0.0rc1.tar.gz
+	cd mummer-4.0.0rc1 && autoreconf -fi && ./configure && make mummer
+	cp mummer-4.0.0rc1/mummer .
+
+
+
 
 # Automated testing for the build
 

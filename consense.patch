@@ -1,0 +1,8 @@
+334c334
+< boolean javarun;
+---
+> static boolean javarun;
+354c354
+< boolean firstplotblock; // for debugging BMP output
+---
+> static boolean firstplotblock; // for debugging BMP output
