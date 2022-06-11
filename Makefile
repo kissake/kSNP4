@@ -198,6 +198,8 @@ binaries/%.pdf : %.pdf
 #
 
 
+deps: $(dependencies)
+
 # FastTreeMP
 # See: http://www.microbesonline.org/fasttree/
 FastTreeMP: FastTree.c
@@ -216,31 +218,37 @@ FastTree.c:
 # Consense
 # More info available here: https://evolution.genetics.washington.edu/phylip.html
 # See testing here: https://evolution.gs.washington.edu/phylip/doc/consense.html
+consense_build = phylip-3.697
 consense: phylip-3.697.tar.gz
 	tar -xzf $<
 	# Patch consense to permit build
-	patch phylip-3.697/src/phylip.h < consense.patch
-	cd phylip-3.697/src && make -f Makefile.unx consense
-	cp phylip-3.697/src/consense .
+	patch $(consense_build)/src/phylip.h < consense.patch
+	cd $(consense_build)/src && make -f Makefile.unx consense
+	cp $(consense_build)/src/consense .
+	rm -r $(consense_build)
 
 phylip-3.697.tar.gz:
 	curl -L "http://evolution.gs.washington.edu/phylip/download/phylip-3.697.tar.gz" > $@
 
 
 # Mummer
+mummer_build = mummer-4.0.0rc1
 mummer: mummer-src.tgz
 	tar -xzf $<
-	cd mummer-4.0.0rc1 && autoreconf -fi && ./configure && make mummer
-	cp mummer-4.0.0rc1/mummer .
+	cd $(mummer_build) && autoreconf -fi && ./configure && make mummer
+	cp $(mummer_build)/mummer .
+	rm -r $(mummer_build)
 
 mummer-src.tgz:
 	curl -L "https://github.com/mummer4/mummer/archive/refs/tags/v4.0.0rc1.tar.gz" > $@
 
 # Parsimonator
+parsimonator_build=Parsimonator-1.0.2-master
 parsimonator: parsimonator-src.zip
 	unzip $<
-	cd Parsimonator-1.0.2-master/ && make -f Makefile.gcc
-	cp Parsimonator-1.0.2-master/parsimonator .
+	cd $(parsimonator_build)/ && make -f Makefile.gcc
+	cp $(parsimonator_build)/parsimonator .
+	rm -r $(parsimonator_build)
 
 parsimonator-src.zip:
 	curl -L "https://github.com/stamatak/Parsimonator-1.0.2/archive/refs/heads/master.zip" >$@
@@ -267,6 +275,6 @@ distclean: clean
 	rm mummer-src.tgz || echo "Clean"
 	rm phylip-3.697.tar.gz || echo "Clean"
 	rm FastTree.c || echo "Clean"
-	rm -r mummer-4.0.0rc1 || echo "Clean"
-	rm -r Parsimonator-1.0.2-master || echo "Clean"
-	rm -r phylip-3.697 || echo "Clean"
+	rm -r $(mummer_build) || echo "Clean"
+	rm -r $(parsimonator_build) || echo "Clean"
+	rm -r $(consense_build || echo "Clean"
