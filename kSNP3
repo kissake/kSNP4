@@ -20,7 +20,7 @@ set kSNP="$0:h"  # /usr/local/kSNP3/kSNP3 -> /usr/local/kSNP3
 
 
 
-setenv CWD=`pwd`
+setenv CWD `pwd`
 setenv PERFEROUTPUT `mktemp -p ${CWD}`
 # setenv PERFERENVIRON "PATH:PERL5LIB"
 setenv PERFERCWD TRUE
