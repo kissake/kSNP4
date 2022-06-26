@@ -20,7 +20,8 @@ set kSNP="$0:h"  # /usr/local/kSNP3/kSNP3 -> /usr/local/kSNP3
 
 
 
-setenv PERFEROUTPUT `mktemp`
+setenv CWD=`pwd`
+setenv PERFEROUTPUT `mktemp -p ${CWD}`
 # setenv PERFERENVIRON "PATH:PERL5LIB"
 setenv PERFERCWD TRUE
 setenv PERFERCMD TRUE
@@ -353,6 +354,9 @@ if ( $k <= 31  ) then
 			# performance badly.  Also, if there are multiple outputs of jellyfish,
 			# they will be in the same order as each other, so maybe it could be 
 			# fast to do some sort of merge, rather than concatenate? TODO - JN
+			# TODO FIXME XXX - Confirmed; this call to sort overwhelms even jellyfish
+			# in terms of CPU usage required.  If we can omit, definitely should do !
+			# TODO FIXME XXX
 			perfer sort unsortedkmers.$f >! kmers_all.$f
 			rm -f unsortedkmers.$f
 		endif
@@ -414,6 +418,7 @@ foreach f (fsplit*[0-9])
 	set min_kmer_coverage=`$kSNP/get_quantile3 freq.$f`
 	echo "minimum kmer coverage for $f is $min_kmer_coverage"
 	# Filter out kmers with lower frequency than this filter - JN
+	# Does NOT depend on kmers_all.* being sorted.  Produces sorted output.
 	perfer awk -v m=$min_kmer_coverage '$2>=m {print}' kmers_all.$f >! kmers.$f
 end
 date
@@ -437,6 +442,9 @@ set RemoveConflicts_Commands="cmds_remove_conflicting" # Note that this is likel
 set DeleteAlleleConflicts="$kSNP/delete_allele_conflicts3"
 
 # Candidate for rewriting in bash + parallel. - JN
+# This looks for k-mers that, within a single genome(confirm?) has multiple
+# alleles (guessing that means it isn't unique enough?), and only outputs 
+# those that don't have multiple (conflicting?) alleles. - JN
 
 # Remove kmers from a genome if there are conflicting alleles in that genome 
 echo "Removing conflicting kmers from each genome with conflicting alleles"
@@ -449,8 +457,9 @@ foreach f (fsplit*)
 	echo $f
 	mkdir Dir.$f
 	cd Dir.$f
-	# Read from fsplit<N>, output into buckets (typically 5-mers) in the
+	# Read from fsplit<N>, output into buckets (typically length 5 prefix) in the
 	# kmers.fsplit<N> directory named with the prefix common to the entries.mers
+	# Does depend on the kmers.* files being sorted (but is there another way?)
 	perfer $kSNP/subset_mers3 ../kmers.$f
 	printf "" >! cmds_remove_conflicting 
 	foreach subset (*.mers)

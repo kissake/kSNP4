@@ -52,7 +52,8 @@ close IN;
 
 open OUT,">$out";
 my %keep=();
-# Unnecessary sort step. - TODO - JN
+# Unnecessary sort step (this part doesn't depend on order, and a more relevant
+# sort is done for the output, making this one irrelelvant). - TODO - JN
 foreach my $seq (sort keys %kmers ) {
     
     @center= keys(%{$kmers{$seq}});

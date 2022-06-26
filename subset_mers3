@@ -5,6 +5,28 @@
 #  subset_mers.pl kmers_fwd_rc
 # k is optional
 
+
+# Organizes input file into multiple buckets based on initial k-mers
+# 
+# Alternative implementation:
+#  - parse into dict that is formed from first $k chars of mer.
+#  - Periodically dump dict to files (appending), zero, and repeat.
+# Benefit of alternative implementation:
+#  - Shorter?
+#  - Simpler?
+#  - Clearer objective?
+#  - Functions on unsorted input.
+#  - Maybe faster? (probably not?)
+#  - Maybe less memory use? (probably not?)
+#
+# Another alternative: Put the meat of the while loop at the end instead into the middle of the loops below
+#  - Simpler
+#  - Shorter
+#  - Lower memory usage
+#  - (negative:) Still requires sorted input.
+#
+# Can we figure out an alternative that doesn't involve us building a half a bazillion files?
+
 no warnings 'deprecated';
 
 my $infile=$ARGV[0]; # probably kmers_fwd_rc
@@ -94,6 +116,7 @@ while (my $line=<IN>){
 	close OUT;
 	until ($line =~ /^$zarray[$count]/) {
 	    $count++;
+	    # The next 3 lines only create empty .mers files; are they necessary? FIXME TODO XXX - JN
 	    $out=$zarray[$count].".mers";
 	    open OUT,">$out";
 	    close OUT;
