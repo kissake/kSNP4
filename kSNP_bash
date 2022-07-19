@@ -1,33 +1,23 @@
 #!/bin/sh
-#v3.92
-
-exit 0
-
-#############
-#############
-#
-# Code beyond this point has not yet been implemented in kSNP_bash; it is in Tcsh.
-#
-#############
-#############
-
 
 
 
 ########################################################################
 
 # WHERE ARE ALL THE kSNP SCRIPTS?  
-# IF YOU INSTALLED kSNP ANYWHERE OTHER THAN /user/local THEN YOU MUST MODIFY THIS TO POINT TO THE DIRECTORY WHERE YOU HAVE INSTALLED kSNP SCRIPTS
+# IF YOU INSTALLED kSNP ANYWHERE OTHER THAN /user/local THEN YOU MUST MODIFY
+# THIS TO POINT TO THE DIRECTORY WHERE YOU HAVE INSTALLED kSNP SCRIPTS
+
 # Try to set this automatically from argv[0] (command path) - JN
 # Per the tcsh man page, :h can be appended to show only the "head"
 # (directory) from the "trailing" (filename) component.  $0 references
 # the command issued when invoking the script.  The requirement that
 # remains is that the other binaries continue to be co-located with
-# this script.
+# this script, or be somewhere else in the PATH
 
-set kSNP="$0:h"  # /usr/local/kSNP3/kSNP3 -> /usr/local/kSNP3
-#set kSNP=/usr/local/kSNP3
-#set kSNP=/g/g15/shea/kSNP3_Source
+# LEGACY TCSH
+# set kSNP="$0:h"  # /usr/local/kSNP3/kSNP3 -> /usr/local/kSNP3
+KSNPPATH=`dirname "${0}"`
 
 
 ########################################################################
@@ -48,6 +38,250 @@ set kSNP="$0:h"  # /usr/local/kSNP3/kSNP3 -> /usr/local/kSNP3
 #############
 
 #############
+# Set up paths to required scripts.  Permits us to change them in only one place.
+#############
+
+ADD_PATHS="${KSNPPATH}/add_paths3"
+THISDIR=`pwd`
+
+
+#############
+# Parse arguments
+#############
+
+
+# Technically our minimum # of arguments is 6... we can bail to error by testing
+# this?
+
+# Set default / initial values of each variable:
+CMDLINE_ERROR=0    # No error initially
+### Mandatory arguments
+K=""
+FASTA_LIST=""
+DIR=""
+
+### Optional arguments default value
+MIN_FRACTION_WITH_LOCUS=""
+ANNOTATE_LIST=""
+SNPS_ALL=""
+GENBANKFILE=""
+NUM_CPUS=0         # 0 means determine ourselves.  Not accepted as user input
+ALL_ANNOTATIONS=0
+CORE=0
+ML=0
+NJ=0
+VCF=0
+DEBUG=0            # Permit user specifying whether debugging enabled on cmdline.
+
+
+while [ ${#} -gt 0 ]
+do
+    case "${1}" in
+	-k)
+	    K="${2}"
+	    if [ 3 -gt "${K}" ] # Is K at least 3?
+	    then
+		CMDLINE_ERROR=1
+		echo "Error: k must be at least 3"
+	    fi
+	    shift 2 # Argument and value
+	    ;;
+	
+	-in)
+	    FASTA_LIST=`"${ADD_PATHS}" "${2}" "${THISDIR}"`
+	    if [ -e "${FASTA_LIST}" ] # Does FASTA_LIST file exist?
+	    then
+		echo "fasta_list: ${FASTA_LIST}"
+	    else
+		CMDLINE_ERROR=1
+		echo "Error: -in argument must be a file that exists (did not find ${FASTA_LIST})"
+	    fi		
+	    shift 2 # Argument and value
+	    ;;
+
+	-outdir)
+	    DIR=`"${ADD_PATHS}" "${2}" "${THISDIR}"`
+	    echo "Output directory: ${DIR}"
+	    # Where is this directory created?  Do we create with -p?
+	    shift 2 # Argument and value
+	    ;;
+	
+	-min_frac)
+	    MIN_FRACTION_WITH_LOCUS="${2}"
+	    # TODO: Add validation?
+	    shift 2 # Argument and value
+	    ;;
+
+	-annotate)
+	    ANNOTATE_LIST=`"${ADD_PATHS}" "${2}" "${THISDIR}"`
+	    if [ -e "${ANNOTATE_LIST}" ] # Does ANNOTATE_LIST file exist?
+	    then
+		echo "annotate_list: ${ANNOTATE_LIST}"
+	    else
+		CMDLINE_ERROR=1
+		echo "Error: -annotate argument must be a file that exists (did not find ${ANNOTATE_LIST})"
+	    fi		
+	    shift 2 # Argument and value
+	    ;;
+
+	-SNPs_all)
+	    SNPS_ALL=`"${ADD_PATHS}" "${2}" "${THISDIR}"`
+	    if [ -e "${SNPS_ALL}" ] # Does SNPS_ALL file exist?
+	    then
+		echo "SNPs_all: ${SNPS_ALL}"
+	    else
+		CMDLINE_ERROR=1
+		echo "Error: -SNPs_all argument must be a file that exists (did not find ${SNPS_ALL})"
+	    fi		
+	    shift 2 # Argument and value
+	    ;;
+	
+	-genbank)
+	    GENBANKFILE=`"${ADD_PATHS}" "${2}" "${THISDIR}"`
+	    if [ -e "${GENBANKFILE}" ] # Does GENBANKFILE file exist?
+	    then
+		echo "genbankFile: ${GENBANKFILE}"
+	    else
+		CMDLINE_ERROR=1
+		echo "Error: -genbank argument must be a file that exists (did not find ${GENBANKFILE})"
+	    fi		
+	    shift 2 # Argument and value
+	    ;;
+	
+	-CPU)
+	    NUM_CPUS="${2}"
+	    if [ 1 -gt "${NUM_CPUS}" ] # Did the user specify a silly number?
+	    then
+		CMDLINE_ERROR=1
+		echo "Error: -CPU must be at least 1"
+	    fi
+	    shift 2 # Argument and value
+	    ;;
+	
+	-all_annotations)
+	    ALL_ANNOTATIONS=1
+	    shift # Argument
+	    ;;
+	
+	-core)
+	    CORE=1
+	    shift # Argument
+	    ;;
+
+	-ML)
+	    ML=1
+	    shift # Argument
+	    ;;
+
+	-NJ)
+	    NJ=1
+	    shift # Argument
+	    ;;
+
+	-vcf)
+	    VCF=1
+	    shift # Argument
+	    ;;
+
+	-debug)
+	    DEBUG=1
+	    shift # Argument
+	    ;;
+
+	*)
+	    CMDLINE_ERROR=1
+	    echo "Error: Unrecognized argument (no valid argument: ${1})"
+	    shift
+	    ;;
+    esac
+
+done # Processing arguments
+
+if [ -z "${K}" -o -z "${DIR}" -o -z "${FASTA_LIST}" ]
+then
+    CMDLINE_ERROR=1
+    echo "Error: Must specify -k, -outdir, and -in.  At least one is missing."
+fi
+
+
+if [ 0 -lt "${CMDLINE_ERROR}" ]
+then
+    cat <<USAGE
+Usage: kSNP3 -k <kmer length> -outdir <output directory> -in <input fasta file> [<optional arguments>...]
+
+Required arguments:
+ -k <kmer_length>
+ -outdir <output_directory>
+ -in <input_fastaFile_list>	
+
+The input_fastaFile_list is a file listing the full path location of each genome
+and the genome name, one line per genome, tab delimited between full path to
+genome fasta file in column 1 and genome name in column 2. This format allows
+multi-read,multi-chromosome, and multi-contig genomes, each genome in separate
+fasta. If multiple chromosomes are listed as separate fasta entries in a single
+genome file, positions and annotations are found for each gi number
+
+Optional arguments:
+ -min_frac <minimum_fraction_genomes_with_locus>  Create a parsimony tree based
+ 	   		 only on SNP loci that occur in at least this fraction of
+			 genomes, for example -min_frac 0.5
+
+ -annotate <annotate_list>  File listing genome names for which to find positions
+ 	   		 and annotate SNPs, names match column 2 of the -in file.
+
+ -SNPs_all <path to SNPs all file>   If given then it uses existing SNPs instead
+ 	   	    	 of searching for new ones, and adds new genomes to the
+			 existing analysis. Assumes only the new genomes are 
+			 listed in the -in file.
+
+ -all_annotations  	 Annotate each locus exhaustively with all annotations 
+ 			 in any of the annotated genomes. Without this option it
+			 only provides the first annotation it comes to for a
+			 given locus, checking in the order genomes are listed in
+			 the -annotate file.
+
+ -core	                 Calculate core SNPs and core SNP parsimony tree
+ -ML	                 Calculate Maximum Likelihood tree
+ -genbank <genbank.gbk>	 Source file for SNP annotation
+ -CPU <num_CPU>		 Number of CPU's to use, (default to all)
+ -NJ  			 Calculate a neighbor joining tree
+ -vcf			 Create a vcf file using the first genome specified in 
+ 			 the -positions file as the reference genome
+
+USAGE
+
+    exit 1
+fi # if there was a parsing error.
+
+if [ 1 -eq "${DEBUG}" ]
+then
+    echo "Settings for this run:"
+    echo "K=${K}"
+    echo "FASTA_LIST=${FASTA_LIST}"
+    echo "DIR=${DIR}"
+    echo "MIN_FRACTION_WITH_LOCUS=${MIN_FRACTION_WITH_LOCUS}"
+    echo "ANNOTATE_LIST=${ANNOTATE_LIST}"
+    echo "SNPS_ALL=${SNPS_ALL}"
+    echo "GENBANKFILE=${GENBANKFILE}"
+    echo "NUM_CPUS=${NUM_CPUS}"
+    echo "ALL_ANNOTATIONS=${ALL_ANNOTATIONS}"
+    echo "CORE=${CORE}"
+    echo "ML=${ML}"
+    echo "NJ=${NJ}"
+    echo "VCF=${VCF}"
+    echo "DEBUG=${DEBUG}"
+fi
+
+
+#############
+# END Parse arguments
+#############
+
+
+
+exit
+
+#############
 #############
 #
 # kSNP rewrite in Bash / Bourne shell stops here.
@@ -56,121 +290,25 @@ set kSNP="$0:h"  # /usr/local/kSNP3/kSNP3 -> /usr/local/kSNP3
 #############
 
 
-# Example:  kSNP3  -in example.fasta.list -outdir Test.out -k 13 -annotate example.annotate_list -min_frac 0.7 
+exit 0
+
+#############
+#############
+#
+# Code beyond this point has not yet been implemented in kSNP_bash; it is in Tcsh.
+#
+#############
+#############
 
 
-if  ($#argv == 0)  then
-	printf "Usage: kSNP3 <options>\
-Options are the following: \
- -k <kmer_length> # required\n\
- -in <input_fastaFile_list>  # required file listing  full path location of each genome and the genome name, one line per genome, tab delimited between full path to genome fasta file in column 1 and genome name in column 2. This format allows multi-read,multi-chromosome, and multi-contig genomes, each genome in separate fasta. If multiple chromosomes are listed as separate fasta entries in a single genome file, positions and annotations are found for each gi number \n\
- -outdir <output_directory> # required \n\
- -annotate <annotate_list> # optional file listing genome names for which to find positions and annotate SNPs, names match column 2 of the -in file. \n\
- -SNPs_all <path to SNPs all file> # optional, if given then it uses existing SNPs instead of searching for new ones, and adds new genomes to the existing analysis. Assumes only the new genomes are listed in the -in file.\n\
- -core # optional, if present calculate core SNPs and core SNP parsimony tree\n\
- -ML # optional, if present calculate Maximum Likelihood tree\n\
- -min_frac <minimum_fraction_genomes_with_locus> # optional to create a parsimony tree based only on SNP loci that occur in at least this fraction of genomes, for example -min_frac 0.5 \n\
- -genbank <genbank.gbk> # optional file for SNP annotation\n\
- -CPU <num_CPU> # optional, number of CPU's to use, if not specified it uses all available\n\
- -NJ # optional, calculate a neighbor joining tree\n\
- -vcf # optional, create a vcf file using the first genome specified in the -positions file as the reference genome\n\
- -all_annotations  # optional, annotate each locus exhaustively with all the annotations in any of the annotated genomes. Without this option it only provides the first annotation it comes to for a given locus, checking in the order genomes are listed in the -annotate file.\n"
-	 exit
-endif 
 
-set DEBUG=0
-
-echo "Location of kSNP scripts: "
-echo "$kSNP"
-
-#  Tell kSNP where the input files are
-set thisDir = `pwd`              # Directory with the input files
-echo "The home directory is $thisDir"
-
-# Read in parameters from command line
-set annotate_list="nonexistent_file"
-set genbankFile="nonexistent_file"
-set all_annotations=0
-
-# Note: AddPaths expands the first argument if it is a pipe or if it is a full
-#   instead of relative path.  Otherwise, it prepends the second argument to
-#   the first with a unix / separating the two.
-# VAR - Do a string substitution below to permit easy renaming of scripts, etc.
-set AddPaths="$kSNP/add_paths3"
-
-
-while ($#argv > 0)    
-	switch ($argv[1])
-	case -vcf: 
-		set vcf=1
-		breaksw
-	case -NJ: 
-		set nj=1
-		breaksw
-	case -ML: 
-		set ML=1
-		breaksw
-	case -core: 
-		set core=1
-		breaksw
-	case -k: 
-		shift
-		set k=$argv[1]
-		breaksw
-	case -in:
-		shift
-		set fasta_list = `$kSNP/add_paths3 "$argv[1]" "$thisDir"`
-		printf "fasta_list $fasta_list\n"
-		breaksw
-	case -outdir:
-		shift
-		set dir = `$kSNP/add_paths3 "$argv[1]" "$thisDir"`
-		printf "dir $dir\n"
-		breaksw
-	case -annotate:
-		shift
-		set annotate_list = `$kSNP/add_paths3 "$argv[1]" "$thisDir"`
-		printf "annotate_list $annotate_list\n"
-		breaksw
-	case -all_annotations:
-		set all_annotations=1
-		breaksw
-	case -min_frac:
-		shift
-		set min_fraction_with_locus="$argv[1]"
-		breaksw
-	case -genbank:
-		shift
-		set genbankFile = `$kSNP/add_paths3 "$argv[1]" "$thisDir"`
-		printf "genbankFile $genbankFile\n"
-		breaksw
-	case -CPU:
-		shift
-		set num_cpus=$argv[1]
-		breaksw
-	case -SNPs_all:
-		shift
-		set SNPs_all = `$kSNP/add_paths3 "$argv[1]" "$thisDir"`
-		printf "SNPs_all $SNPs_all\n"
-		breaksw
-	default:
-		# Note that an unknown argument results in the eating of the
-		# next argument; this seems like a bug.  Perhaps this code path
-		# should result in failing and a display of the usage page? - JN
-		shift
-		printf "Unknown parameter $argv[1]\n"
-	endsw
-	
-	# Parse next argument
-	shift
-end
 
 # VAR
 set CheckFileNames="$kSNP/CheckFileNames"
 set NameErrorsFile="NameErrors.txt"
 $kSNP/CheckFileNames $fasta_list
 if (-f 'NameErrors.txt') then	
-	echo "pKSNP3 terminated because of error file being present."
+	echo "kSNP3 terminated because of error file being present."
 	exit
 endif
 
