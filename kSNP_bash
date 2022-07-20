@@ -42,7 +42,17 @@ KSNPPATH=`dirname "${0}"`
 #############
 
 ADD_PATHS="${KSNPPATH}/add_paths3"
+LE2UNIX="${KSNPPATH}/LE2Unix"
+CHECKFILENAMES="${KSNPPATH}/CheckFileNames"
+MERGE_FASTA_READ="${KSNPPATH}/merge_fasta_reads3"
+
+
+
+# Other variables / files / directories.
+NAMEERRORSFILE="NameErrors.txt"
 THISDIR=`pwd`
+SPLITNAME="fsplit"
+FILE2GENOME="fileName2genomeName"
 
 
 #############
@@ -74,9 +84,9 @@ VCF=0
 DEBUG=0            # Permit user specifying whether debugging enabled on cmdline.
 
 
-while [ ${#} -gt 0 ]
+while [ ${#} -gt 0 ]  # While we have more arguments to process...
 do
-    case "${1}" in
+    case "${1}" in    # "switch" / case  based on what the argument is.
 	-k)
 	    K="${2}"
 	    if [ 3 -gt "${K}" ] # Is K at least 3?
@@ -188,7 +198,7 @@ do
 	    shift # Argument
 	    ;;
 
-	*)
+	*)  # All other values are errors.          
 	    CMDLINE_ERROR=1
 	    echo "Error: Unrecognized argument (no valid argument: ${1})"
 	    shift
@@ -279,7 +289,166 @@ fi
 
 
 
-exit
+#############
+# START Setup of environment, update user re: details.
+#############
+
+
+# Ensure our working directory is the directory specified in the commandline 
+# arguments, even if it doesn't exist yet (TODO - Ensure directory created in 
+# argument parsing above? Will be clearer that the dir will be created) - JN 
+if [ ! -d "${DIR}" ]  # If the output directory doesn't exist...
+then
+    mkdir -p "${DIR}" || { echo "Unable to create output / working directory: ${DIR}" ; exit 1 ; }
+fi
+cd "${DIR}"
+
+# This validation should be to STDERR, and shouldn't use state?  Or maybe the errors are
+# complicated enough that we need to keep the details around for the user to use to address
+# the errors?
+"${CHECKFILENAMES}" "${FASTA_LIST}"
+if [ -e "${NAMEERRORSFILE}" ]
+then
+	echo "ERROR: kSNP terminated because error file ${NAMEERRORSFILE} is present."
+	echo " Please review the contents of this file, correct any errors found, remove the file, and re-run kSNP"
+	exit 1
+fi
+
+echo "Starting kSNP"
+date
+STARTSECONDS=`date +%s`
+
+echo "Configuration for this run:"
+echo "input fasta_list: ${FASTA_LIST}"
+echo "output / working directory: ${DIR}"
+echo "k=${K}"
+echo "annotate_list file: ${ANNOTATE_LIST}"
+if [ 1 -eq "${ALL_ANNOTATIONS}" ]   # Defaults to 0
+then 
+	echo "Report all annotations"
+else
+	echo "Report minimal annotations"
+fi
+
+if [ -n "${MIN_FRACTION_WITH_LOCUS}" ]  # Defaults to empty string.
+then
+	echo "min_fraction_with_locus: ${MIN_FRACTION_WITH_LOCUS}"
+fi
+
+if [ -n "${GENBANKFILE}" ]   # Already checked for existence when parsing arguments.
+then
+	echo "Genbank file for annotations (and any from NCBI with gi number which are automatically downloaded): ${GENBANKFILE}"
+fi
+
+if [ 0 -eq "${NUM_CPUS}" ]
+then
+	echo "Automatically determining number of CPUs to use:"
+	OS=`uname`
+       	echo "The operating system is ${OS}"
+
+	if [ "Darwin" = "${OS}" ] # MacOS
+	then
+		NUM_CPUS=`/usr/sbin/system_profiler SPHardwareDataType | awk '/Total Number of Cores/ {print $5}'`
+	else # Linux
+		NUM_CPUS=`cat /proc/cpuinfo | grep processor | wc -l`
+	fi
+
+	echo "Discovered ${NUM_CPUS}"
+
+	if [ 1 -gt "${NUM_CPUS}" ]
+	then
+	       	NUM_CPUS=8
+		echo "Could not automatically determine number of CPUs available, defaulting to ${NUM_CPUS}"
+        fi
+fi
+
+echo "Number CPUs: ${NUM_CPUS}"
+
+
+echo "SNPS_ALL=${SNPS_ALL}"
+echo "GENBANKFILE=${GENBANKFILE}"
+echo "CORE=${CORE}"
+echo "ML=${ML}"
+echo "NJ=${NJ}"
+echo "VCF=${VCF}"
+echo "DEBUG=${DEBUG}"
+
+
+### Preprocess FASTA input file.
+
+#chesk the fasta genome files to be sure line endings are Unix and fix if they are not
+# Copy the original input file ${FASTA_LIST} to a specified name in the output directory for easier reference
+cp -f "${FASTA_LIST}" fasta_list
+
+# Process each file listed in the input file to correct the line endings if needed and if possible
+"${LE2UNIX}" fasta_list
+
+# Then process the fasta_list file to correct its line-endings.
+perl -i -pe 's/\015\012/\012/g' fasta_list    # Windows to unix
+perl -i -pe 's/\015/\012/g' fasta_list	      # Mac old format to unix
+
+
+
+### Preprocess Annotation input file.
+
+# WARNING:
+# The file 'annotate_list' in the working / output directory is maintained state.
+# This means different behavior if the output directory is re-used.
+# WARNING
+
+# Benefits to operating on a copy? (does this program modify 'annotate_list'
+# file?) - JN
+if [ -e "${ANNOTATE_LIST}" ]
+then
+	cp -f "${ANNOTATE_LIST}" annotate_list
+else
+	touch annotate_list
+fi
+
+# Which means that the conversion to unix line-endings needs to be redone...? - JN
+#DOS to unix
+perl -i -pe 's/\015\012/\012/g' annotate_list	# Windows to unix
+perl -i -pe 's/\015/\012/g' annotate_list	# Mac old format to unix
+
+# Output contents of annotate_list to the console (why?) - JN
+echo "Finished genomes for finding SNP positions:"
+cat annotate_list
+echo ""
+
+
+# Make lookup table of genome names and fsplit# files, and create fsplit# files by merging entries of multi-contig/multi-read input genomes. 
+COUNT=0
+# Note that this is sensitive to extra lines, including blank lines?
+NUM_SEQS=`wc -l fasta_list | awk '{print $1}' `
+
+echo "Number of input sequences: ${NUM_SEQS}"
+
+# Ensure fileName2genomeName file exists and is empty.
+rm "${FILE2GENOME}" 2> /dev/null # Ignore errors
+touch "${FILE2GENOME}"
+
+# VAR
+
+
+# Output fasta_list input file, with lines numbered from zero in the first column, and write
+# a mapping from fsplit<line number> to genome name (tab separated) into fileName2genomeName
+# file
+COUNT=0
+cat fasta_list | while read FILE GENOME   # Read the contents of each line into two variables.
+do
+    # Output to the screen the association between the count, the genome name and the file.
+    echo "${COUNT}\t${GENOME}\t${FILE}"
+    
+    FSPLIT="${SPLITNAME}${COUNT}"
+    # Combine multiple FASTA file records in a file into a single record by joining them with 'N'
+    "${MERGE_FASTA_READ}" "${FILE}" > "${FSPLIT}"
+    
+    # Mapping of fsplit filename to genome
+    echo "${FSPLIT}\t${GENOME}" >> "${FILE2GENOME}"
+    
+    # Increment count variable
+    COUNT=`expr "${COUNT}" + 1`
+done
 
 #############
 #############
@@ -292,182 +461,6 @@ exit
 
 exit 0
 
-#############
-#############
-#
-# Code beyond this point has not yet been implemented in kSNP_bash; it is in Tcsh.
-#
-#############
-#############
-
-
-
-
-# VAR
-set CheckFileNames="$kSNP/CheckFileNames"
-set NameErrorsFile="NameErrors.txt"
-$kSNP/CheckFileNames $fasta_list
-if (-f 'NameErrors.txt') then	
-	echo "kSNP3 terminated because of error file being present."
-	exit
-endif
-
-
-
-# This should be bundled into a 'log' type function for consistency of output.
-# Also, this will permit finer grained debug info? - JN
-echo "Starting kSNP"
-date
-set startseconds=`date +%s`
-
-# Turn the below into the option to write a config file matching the current
-# config / arguments / etc, then add the ability to parse (eval?) the config 
-# file to permit recreating a previous config exactly. TODO - JN
-echo "input fasta_list: $fasta_list"
-echo "output directory: $dir"
-echo "k=$k"
-echo "annotate_list file: $annotate_list"
-if ($all_annotations == 1) then
-	echo "Report all annotations."
-else 
-	echo "Report minimal annotations."
-endif
-
-if ( $?min_fraction_with_locus ) then
-	echo "min_fraction_with_locus: $min_fraction_with_locus"
-endif
-
-if ($?genbankFile  ) then
-	if ( -e "$genbankFile") then
-		echo "Genbank file for annotations (and any from NCBI with gi number which are automatically downloaded): $genbankFile"
-	endif 
-endif
-
-
-# My ideal answer to this is to find an approach that maximizes load without
-# pre-calculating / having to know the number of CPUs, such as parallel?
-# xargs is a tool I'm more familiar with, and just loading the CPU is my
-# general approach.  Be wary of IO bound or network bound tasks.  - JN
-
-# If number of CPUs not specified, determine programmatically - JN
-#get the number of CPUs
-if !($?num_cpus) then
-	#get the operating system
-	set OS=`uname`
-
-	if ($OS == 'Darwin') then
-		echo "The operating system is $OS"
-		# Avoid temporary file by using pipes in awk command below. TODO - JN
-		### set num_cpus=`/usr/sbin/system_profiler SPHardwareDataType | awk '/Total Number of Cores/ {print $5}'`
-		/usr/sbin/system_profiler SPHardwareDataType>wubba
-		set num_cpus=` awk '/Total Number of Cores/ {print $5}' wubba`
-		echo "There are $num_cpus CPUs"  
-		rm wubba
-		##@ num_cpus=$num_proc
-	endif
-
-	if ($OS != 'Darwin') then
-		echo "The operating system is $OS"
-		set num_cpus=`cat /proc/cpuinfo | grep processor | wc -l`
-	endif
-	if ($num_cpus < 1 ) then
-		set num_cpus=8
-		echo "Could not figure out the number of CPUs, will run 8 processes"
-	endif
-
-endif
-echo "Number CPUs: $num_cpus"
-
-# VAR
-set FastaList="fasta_list"
-set UnixLineEndings="$kSNP/LE2Unix"
-
-#chesk the fasta genome files to be sure line endings are Unix and fix if they are not
-cp -f "$fasta_list" fasta_list
-$kSNP/LE2Unix fasta_list
-# First check genome names. Prints to STDERR if duplicate names, STDOUT list of genome names parsed for kSNP. Use names corresponding to (none, any or all of) these in the $annotate_list file.
-#echo  "Sequence names used for kSNP:"
-#$kSNP/genome_names3  "$fasta" 
-
-# Ensure our working directory is the directory specified in the commandline 
-# arguments, even if it doesn't exist yet (TODO - Ensure directory created in 
-# argument parsing above? Will be clearer that the dir will be created) - JN 
-if !( -e "$dir") then
-	mkdir "$dir"
-endif
-cd "$dir"
-
-# Ensure 'annotate_list' file exists, either with contents of file specified
-# as a commandline argument, or the contents of the file with that name now,
-# or an empty file if no such file now.  Will it be better to not care?
-
-# Consider making this path fully specified?
-# Benefits to operating on a copy? (does this program modify 'annotate_list'
-# file?) - JN
-# VAR
-set AnnotateList="annotate_list"
-if ( -e "$annotate_list") then
-	cp -f "$annotate_list" annotate_list
-else
-	touch annotate_list
-endif
-
-# Note that this command seems to undo the above LE2Unix command...? - JN
-cp -f "$fasta_list" fasta_list
-
-# Which means that the conversion to unix line-endings needs to be redone...? - JN
-#DOS to unix
-perl -i -pe 's/\015\012/\012/g' annotate_list
-perl -i -pe 's/\015/\012/g' annotate_list
-perl -i -pe 's/\015\012/\012/g' fasta_list
-perl -i -pe 's/\015/\012/g' fasta_list
-
-
-# Output contents of annotate_list to the console (why?) - JN
-echo "Finished genomes for finding SNP positions:"
-cat annotate_list
-echo ""
-
-
-# Make lookup table of genome names and fsplit# files, and create fsplit# files by merging entries of multi-contig/multi-read input genomes. 
-set count=0
-set num_seqs=`wc -l fasta_list | awk '{print $1}' `
-echo "Number of input sequences: $num_seqs "
-# Create the file 'fileName2genomeName if it does not exist, overwrite it with
-# an empty file if it does exist. - JN
-# Does this make more sense than 'rm' + 'touch' which might be clearer?
-printf "" >! fileName2genomeName
-
-# VAR
-set FsplitPrefix="fsplit"
-set FilenameToGenomeName="fileName2genomeName"
-
-# This might be easier in bash?  Faster in awk? - JN
-# 95% solution in awk: awk -F'\011' -v c=0 '{print c, $2, $1 ; print "fsplit" c, $2 >> fileName2genomeName ; c=c+1}' fasta_list
-# Above command uses spaces instead of tabs TODO - JN
-while ($count < $num_seqs)
-	# VAR - This way references are consistent throughout the loop.
-	set FsplitName="$FsplitPrefix$count"
-
-	# fasta_list is in '<file> <name> [<additional data?>*]' pairs, one per 
-	# line.  Extract file and name from the current line. - JN
-	set name=`awk -F'\011' -v c="$count" 'FNR==c+1 {print $2}' fasta_list`
-	set file=`awk -F'\011' -v c="$count" 'FNR==c+1 {print $1}' fasta_list`
-	# Output the current element in a numbered list of entries in 'fasta_list'
-	printf "$count\t$name\t$file\n"
-	# Take all of the FASTA entries in the current file, identify them based
-	# on the name of the file, and merge them into one long entry using the
-	# character N (typically representing an arbitrary nucleic acid in a fasta
-	# file) to separate previously fully-isolated / fully-identified entries.
-	#
-	# That data goes into a file named with a consistent prefix (for later
-	# operations?) and a numbered suffix. - JN
-	$kSNP/merge_fasta_reads3  "$file" >! fsplit$count
-	# Document the association between the original name and the transformed
-	# file with the new name in fileName2genomeName - JN
-	printf "fsplit$count\t$name\n" >> fileName2genomeName
-	@ count ++
-end
 
 
 # VAR
