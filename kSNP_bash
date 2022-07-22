@@ -45,14 +45,18 @@ ADD_PATHS="${KSNPPATH}/add_paths3"
 LE2UNIX="${KSNPPATH}/LE2Unix"
 CHECKFILENAMES="${KSNPPATH}/CheckFileNames"
 MERGE_FASTA_READ="${KSNPPATH}/merge_fasta_reads3"
-
-
+JELLYFISH="${KSNPPATH}/jellyfish"
+GETQUANTILE="${KSNPPATH}/get_quantile3"
+SUBSETMERS="${KSNPPATH}/subset_mers3"
+DELETEALLELECONFLICTS="${KSNPPATH}/delete_allele_conflicts3"
+PARALLELCOMMANDS="${KSNPPATH}/parallel_commands3"
 
 # Other variables / files / directories.
 NAMEERRORSFILE="NameErrors.txt"
 THISDIR=`pwd`
 SPLITNAME="fsplit"
 FILE2GENOME="fileName2genomeName"
+HASHSIZE=1000000000   # One billion.
 
 
 #############
@@ -305,7 +309,7 @@ cd "${DIR}"
 
 # This validation should be to STDERR, and shouldn't use state?  Or maybe the errors are
 # complicated enough that we need to keep the details around for the user to use to address
-# the errors?
+# the errors?  TODO FIXME XXX
 "${CHECKFILENAMES}" "${FASTA_LIST}"
 if [ -e "${NAMEERRORSFILE}" ]
 then
@@ -441,6 +445,7 @@ do
     
     FSPLIT="${SPLITNAME}${COUNT}"
     # Combine multiple FASTA file records in a file into a single record by joining them with 'N'
+    # NOTE: This can take measurable amount of time for FASTA files with lots of records.  Cache this data? - JN FXIME TODO XXX
     "${MERGE_FASTA_READ}" "${FILE}" > "${FSPLIT}"
     
     # Mapping of fsplit filename to genome
@@ -449,6 +454,98 @@ do
     # Increment count variable
     COUNT=`expr "${COUNT}" + 1`
 done
+
+
+#############
+# FINISHED Setup of environment, update user re: details.
+#############
+
+
+
+
+#############
+#############
+#
+# Run jellyfish on the merged input files to produce kmers list files.
+#
+#############
+#############
+
+# Input: List of merged input files (in the $FILE2GENOME file here) and the files themselves
+# Output: A kmers_all version of each input file.
+
+
+KMERSALLPREFIX="kmers_all"
+UNSORTEDKMERSPREFIX="unsortedkmers"
+
+date # Output the date for timing info.
+echo "Running jellyfish to find k-mers"
+
+# Extract the names of the files from the list we already created, and iterate through the list.
+cat "${FILE2GENOME}" | while read FILE REST
+do
+    KMERSALL="${KMERSALLPREFIX}.${FILE}"
+    UNSORTEDKMERS="${UNSORTEDKMERSPREFIX}.${FILE}"
+    if [ ! -s "${KMERSALL}" ]
+    then
+	JELLYFILE="Jelly.${FILE}"
+	echo "${FILE}"  # Perhaps we should print the genome instead?  It is in $REST at this time
+
+	# Extract all of the k-mers from the input fasta files ( along with counts? or is that just a placeholder? )
+	"${JELLYFISH}" count -C -o "${JELLYFILE}" -m "${K}" -s "${HASHSIZE}" -t "${NUM_CPUS}" "${FILE}"
+
+	# Output is not sorted.
+	"${JELLYFISH}" dump -c "${JELLYFILE}" > "${UNSORTEDKMERS}"
+
+	# Not clear that output needs to be sorted yet.
+	sort "${UNSORTEDKMERS}" > "${KMERSALL}"
+	
+	# Note that we aren't removing the $JELLYFILE?  It is smaller than the origin file, to be fair.
+	rm "${UNSORTEDKMERS}"
+    fi
+done
+
+echo "Finished running jellyfish."
+
+
+#############
+# START Filtering k-mers from jellyfish based on frequency.
+#############
+
+
+### FIXME TODO XXX Removed portion of the kSNP3 tcsh script referencing 'sa' tool as unused.  It overlaps with jellyfish function above.
+
+FREQUENCYPREFIX="freq"
+KMERSPREFIX="kmers"
+
+echo "Filtering out low-frequency kmers."
+
+# Extract the names of the files from the list of input files we already created, and iterate through the list.
+cat "${FILE2GENOME}" | while read FILE REST
+do
+    FREQUENCY="${FREQUENCYPREFIX}.${FILE}"
+    KMERSALL="${KMERSALLPREFIX}.${FILE}"
+    KMERS="${KMERSPREFIX}.${FILE}"
+
+    awk '{print $2}' "${KMERSALL}" > "${FREQUENCY}"
+
+    MIN_KMER_COVERAGE=`"${GETQUANTILE}" "${FREQUENCY}"`
+    echo "minimum kmer coverage for ${FILE} is ${MIN_KMER_COVERAGE}"
+
+    # Filter out k-mers with frequency lower than the $MIN_KMER_COVERAGE
+    awk -v "m=${MIN_KMER_COVERAGE}" '$2>=m {print}' "${KMERSALL}" > "${KMERS}"
+
+    # Remove temporary frequency file
+    rm "${FREQUENCY}"
+done
+
+date
+echo "Filtered out low-frequency kmers."
+
+#############
+# FINISHED Filtering k-mers from jellyfish based on frequency.
+#############
+
 
 #############
 #############
@@ -459,120 +556,75 @@ done
 #############
 
 
+#############
+#
+# Remove conflicting k-mers.  A k-mer is conflicting there are multiple
+# 'alleles' (k-mers matching in all but the center) within a given genome.
+#
+# This is an issue because you cannot discern a mutation between two genomes
+# when there are multiple matching k-mers _within_ a genome using this tool
+# which is restricted to looking at the k-mers without the full genome context.
+#
+#############
+
+### Input: kmers.fsplit<N> (all)
+### Output: Dir.fsplit<N>/X*.mers (many for each fsplit<N> source) 
+### Output: kmers_fsplit<N>.conflictsDeleted (each)
+### Transform: k-mers in the kmers.fsplit<N> file sorted into buckets of 
+###   identical prefix
+### Transform: A conflict is when a k-mer matches another in every character
+###   except the center.  These are removed from the buckets of identical
+###   prefix above, and the resulting k-mers are simply listed in the output
+###   file (.conflictsDeleted) in sorted order.
+
+# Challenges:
+#  - Creates a lot of files that then need to be managed.
+#  - Parallelizes without regard to size of dataset (confirm?)
+#  - LOTS of sorting.
+
+
+DIRPREFIX="Dir"
+REMOVECONFLICTSCOMMANDS="cmds_remove_conflicting"
+
+# Remove kmers from a genome if there are conflicting alleles in that genome 
+echo "Removing conflicting kmers from each genome with conflicting alleles"
+
+cat "${FILE2GENOME}" | while read FILE REST
+do
+    GENOMEDIRECTORY="${DIRPREFIX}.${FILE}"
+    KMERS="../${KMERSPREFIX}.${FILE}"
+
+    echo "${FILE}"
+    mkdir "${GENOMEDIRECTORY}"
+    cd "${GENOMEDIRECTORY}"
+
+    "${SUBSETMERS}" "${KMERS}"
+
+    rm "${REMOVECONFLICTSCOMMANDS}" 2> /dev/null
+    touch "${REMOVECONFLICTSCOMMANDS}"
+
+    # I think these are the output files from subset_mers3? TODO FIXME XXX
+    # Note that this can use xargs v. easily.
+    for SUBSET in *.mers     
+    do
+	echo "${DELETEALLELECONFLICTS} ${SUBSET}" >> "${REMOVECONFLICTSCOMMANDS}"
+    done
+    
+    "${PARALLELCOMMANDS}" "${NUM_CPUS}" "${REMOVECONFLICTSCOMMANDS}"
+
+    cd ..   # Return to the working directory.
+
+done
+
+echo "Finished removing conflicting kmers"
+date
+
+
 exit 0
 
 
 
-# VAR
-set KMersAllPrefix="kmers_all"
-set UnsortedKMersPrefix="unsortedkmers"
-set Jellyfish="$kSNP/jellyfish"
 
-# This test for k-mer size less than 32 may be an artifact of previous versions
-# of jellyfish that could not handle k-mer sizes greater than 31.  That is no
-# longer true; revisit? TODO - JN
-if ( $k <= 31  ) then
-	# jellyfish can do forward and reverse complement counts at same time, only the canonical direction (first in sorted list) kmer is listed, but counts are for both directions
-	date
-	echo "Running jellyfish to find k-mers"
-	# Loop over the files in the standard naming scheme (prefix + count) - JN
-	# Would be better if we pulled a list of actual files we are working 
-	# on from above fileName2genomeName? - JN
-	foreach f (fsplit*[0-9])
-		# VAR
-		set KMersAll="$KMersAllPrefix.$f"
-		set UnsortedKMers="$UnsortedKMersPrefix.$f"
-
-		# Check to see if kmers_all.<filename> exists and has size > 0.  If so,
-		# we have probably already done this work and can skip to the next? - JN	    
-		if !(-s kmers_all.$f) then
-			echo "$f"
-			# Create kmers count database with canonical counts from current file
-			# with name Jelly.<filename>.
-			$kSNP/jellyfish count -C -o Jelly.$f -m $k -s 1000000000  -t $num_cpus  $f
-			# TODO Doublecheck output; it should be Jelly.<filename> but may be
-			# Jelly.<filename>_<optional text here> ... - JN
-			printf "" >! unsortedkmers.$f
-			# It is possible that due to a bug, this code is never executed because
-			# there are no Jelly.<filename>_... files, only Jelly.<filename>. TODO - JN
-			# There is the distinct possibility that Jellyfish can do either, and in
-			# the case with _'s, the data is partitioned but unsorted...? - JN
-			foreach i (Jelly."$f"_*)
-				# Output the corresponding dump in columnar format.
-				$kSNP/jellyfish dump -c $i  >> unsortedkmers."$f"
-			end
-			# Sort lexographically the kmer count dump in lexographic order and
-			# remove the unsorted file (temporary file).  Is this necessary?  It
-			# probably takes quite a while for a large dataset.  This could hurt
-			# performance badly.  Also, if there are multiple outputs of jellyfish,
-			# they will be in the same order as each other, so maybe it could be 
-			# fast to do some sort of merge, rather than concatenate? TODO - JN
-			sort unsortedkmers.$f >! kmers_all.$f
-			rm -f unsortedkmers.$f
-		endif
-	end
-	echo "Finished running jellyfish"
-endif
-
-# Not able to easily find 'sa' tool TODO - JN
-# SA tool clearly a drop-in replacement for Jellyfish.  Produces unsorted count
-# data also, in non-canonical form (must be canonicalized and sorted by perl
-# helper script). - JN
-
-# VAR
-set SA="$kSNP/sa"
-set RCKMerFreqs="$kSNP/rc_kmer_freqs3"
-
-# Also, this test seems redundant; shouldn't this be an 'else' to the previous
-# 'if'? - JN
-if  ($k>31 ) then
-	echo "Running sa to find k-mers"
-	date
-	foreach f (fsplit*[0-9])
-		# VAR
-		set CountsFile="$f.counts"
-
-		# Check to see if kmers_all.<filename> exists and has size > 0	    
-		if !(-s kmers_all.$f) then
-			$kSNP/sa $f $k 0
-			$kSNP/rc_kmer_freqs3 $f.counts >! kmers_all.$f 
-			rm -f $f.counts
-		endif
-	end
-	echo "Finished running sa"
-	date
-endif
-
-### Input: kmers_all.fsplit<N> (all)
-### Output: kmers.fsplit<N> (for each input)
-### Transform: Reduce # of entries by filtering out low frequency elements per
-###   specified criteria (arbitrary?  If not, then what rationale? TODO) - JN
-
-# VAR
-set FrequencyPrefix="freq"
-set GetQuantile="$kSNP/get_quantile3"
-set KMersPrefix="kmers"
-
-# Remove kmers that occur less than freq=average of median and mean kmer frequency for that genome.  
-echo "Removing kmers that occur less than freq=average of median and mean kmer frequency for that genome."
-date
-foreach f (fsplit*[0-9])
-	# VAR
-	set Frequency="$FrequencyPrefix.$f"
-	set KMersAll="$KMersAllPrefix.$f"
-	set KMers="$KMersPrefix.$f"
-
-	awk '{print $2}' kmers_all.$f > ! freq.$f
-	# This runs a perl program over the frequency list to calculate the mean,
-	# the median, and then the average of the two rounded to an integer. - JN
-	set min_kmer_coverage=`$kSNP/get_quantile3 freq.$f`
-	echo "minimum kmer coverage for $f is $min_kmer_coverage"
-	# Filter out kmers with lower frequency than this filter - JN
-	awk -v m=$min_kmer_coverage '$2>=m {print}' kmers_all.$f >! kmers.$f
-end
-date
-# Remove temporary file - JN
-rm freq.*
 
 ### Input: kmers.fsplit<N> (all)
 ### Output: Dir.fsplit<N>/X*.mers (many for each fsplit<N> source) 
