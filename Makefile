@@ -221,11 +221,10 @@ FastTree.c:
 consense_build = phylip-3.697
 consense: phylip-3.697.tar.gz
 	tar -xzf $<
-	# Patch consense to permit build
-	patch $(consense_build)/src/phylip.h < consense.patch
+	# Patch consense to permit build and to permit longer (200 char in this case) names.
+	patch -p 0 < consense.patch
 	cd $(consense_build)/src && make -f Makefile.unx consense
 	cp $(consense_build)/src/consense .
-	rm -r $(consense_build)
 
 phylip-3.697.tar.gz:
 	curl -L "http://evolution.gs.washington.edu/phylip/download/phylip-3.697.tar.gz" > $@
@@ -277,4 +276,4 @@ distclean: clean
 	rm FastTree.c || echo "Clean"
 	rm -r $(mummer_build) || echo "Clean"
 	rm -r $(parsimonator_build) || echo "Clean"
-	rm -r $(consense_build || echo "Clean"
+	rm -r $(consense_build) || echo "Clean"
