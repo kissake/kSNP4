@@ -57,8 +57,11 @@ PICKSNPSFROMKMERS="${KSNPPATH}/pick_snps_from_kmer_genome_counts3"
 FINDALLELE="${KSNPPATH}/find_allele3"
 MUMMER="${KSNPPATH}/mummer"
 PARSEMUMMER="${KSNPPATH}/parse_mummer4kSNP3"
-
-
+NUMBERSNPS="${KSNPPATH}/number_SNPs_all3"
+RENAMEFROMTABLE="${KSNPPATH}/rename_from_table3"
+PARSESNPSTOVCF="${KSNPPATH}/parse_SNPs2VCF3"
+SNPSTOFASTAMATRIX="${KSNPPATH}/SNPs_all_2_fasta_matrix3.pl"  # NOTE: This is a .pl file and probably should be the name without a suffix. - JN
+PARSIMONATOR="${KSNPPATH}/parsimonator"
 
 
 # Other variables / files / directories.
@@ -80,6 +83,8 @@ SNPPOSITIONS="SNP.positions"
 
 KMERSALLPREFIX="kmers_all"
 UNSORTEDKMERSPREFIX="unsortedkmers"
+NUMTREES=100
+PARSIMONYSEED=1234
 
 
 
@@ -446,7 +451,6 @@ echo ""
 
 
 # Make lookup table of genome names and fsplit# files, and create fsplit# files by merging entries of multi-contig/multi-read input genomes. 
-COUNT=0
 # Note that this is sensitive to extra lines, including blank lines?
 NUM_SEQS=`wc -l fasta_list | awk '{print $1}' `
 
@@ -845,59 +849,143 @@ fi
 
 
 
+
+ALLSNPSUNSORTED="all_SNPs_unsorted"
+ALLSNPSSORTED="all_SNPs_sorted"
+
+touch "${ALLSNPSUNSORTED}"
+
+cat "${FILE2GENOME}" | while read FILE GENOME  # For each genome input file...
+do
+    GENOMEDIRECTORY="${DIRPREFIX}.${FILE}"
+    echo "genome: ${GENOME} in ${GENOMEDIRECTORY}"
+    
+    POSITIONSFILE="${GENOMEDIRECTORY}/${SNPPOSITIONS}"
+    SNPSFILE="${GENOMEDIRECTORY}/${SNPSPREFIX}"
+    
+    if [ -s "${POSITIONSFILE}" ]  # We can create the full SNPs data that references locations in the original genome.
+    then 
+	awk -F'\011' -v "f=${FILE}" '{print $1 "\t" $2 "\t" $3  "\t" f "\t" $4}' "${POSITIONSFILE}"  >> "${ALLSNPSUNSORTED}"
+    else   # mummer failed.... (we should output something here?)
+	# Output SNP data, though we don't have location and direction info, and for some reason we put the genome name
+	# where the file name should go ???  (we have both genome name and filename, so that's weird, right?)
+	# We can get a lot of the same mapping (filename, ascension number, genome name) from non-mummer info, so this
+	# seems weak sauce.  Also the output is v. different in terms of the k-mers / SNPs that show up (it seems).
+	# TODO FIXME XXX not sure what's going on here.
+	echo "Warning, mummer output missing!"
+	awk -v "genome=${GENOME}" '{print  $1 "\t" $2 "\tx\t" genome "\t" }' "${SNPSFILE}" >> "${ALLSNPSUNSORTED}"
+    fi
+done
+
+### Now we have unsorted SNP data from all genomes in one file.
+
+
+if [ -e "${SNPS_ALL}" ] # If we have prior SNPs data...
+then
+    # Add all of the $SNPS_ALL file to the end of the unsorted SNPs data, omitting the first column
+    # which is the count.
+    awk -F'\011'  '{print $2 "\t" $3 "\t" $4  "\t" $5 "\t" $6 "\t" $7}' "${SNPS_ALL}" >> "${ALLSNPSUNSORTED}"
+fi
+
+# Sort the resulting SNPs file.
+sort -u "${ALLSNPSUNSORTED}" > "${ALLSNPSSORTED}"
+
+
+ALLSNPSSORTEDLABELED="all_SNPs_sorted_labelLoci"
+
+# Create a unique number for each distinct loci, separates loci by blank line.
+# Outputs to all_SNPs_sorted_labelLoci
+"${NUMBERSNPS}" "${ALLSNPSSORTED}"
+
+SNPSALLOUTPUT="SNPs_all"
+
+"${RENAMEFROMTABLE}" "${ALLSNPSSORTEDLABELED}" "${FILE2GENOME}" "${SNPSALLOUTPUT}"
+
+
+
+# Set reference genome for vcf file to the be first finished genome, if this is empty, then set it to be the first genome in the input fasta file.
+if [ -s "${ANNOTATE_LIST}" ]
+then
+    REFERENCEGENOME=`head -1 annotate_list`
+else
+    REFERENCEGENOME=`head -1 fileName2genomeName | awk '{print $2}'`
+fi
+
+VCFFILE="VCF.${REFERENCEGENOME}.vcf"
+
+if [ 1 -eq "${VCF}" ] # If -vcf flag was passed to kSNP, parse the SNPs_all file.
+then
+    # Bug where this invocation has error: "Cannot open all" - FIXME TODO XXX - JN
+   "${PARSESNPSTOVCF}" "${SNPSALLOUTPUT}" "${VCFFILE}" "${REFERENCEGENOME}"
+fi
+
+echo "Finished finding SNPs"
+date
+
+
+SNPSMATRIX="SNPs_all_matrix"
+SNPSMATRIXFASTA="${SNPSMATRIX}.${SNPLOCISUFFIX}"
+
+
+## Create a SNP matrix and fasta, for inputting to PHYLIP, FastTreeMP or other tools like SplitsTree
+"${SNPSTOFASTAMATRIX}" "${SNPSALLOUTPUT}" "${SNPSMATRIXFASTA}" "${SNPSMATRIX}"
+
+# This variable is used to record and then retrieve which types of trees are made from the list:
+# parsimony, nj and ml.
+TREELISTONE="tree_list1"
+TREELISTTWO="tree_list2" # Probably unused
+
+# Shortcut to put the same data in two files.
+echo "parsimony" | tee "${TREELISTONE}" > "${TREELISTTWO}"
+
+############### Make tree using SNP matrix
+echo "Building parsimony tree"
+
+# Build parsimony tree
+# From _the_source_code_ (axml.c, get_args()):
+# (side note, filenames are limited to 1k characters.  possibility of overflow here, yay C!)
+#  -s <sequence file> (no info on file format here)
+#  -p <parsimony seed> (used for randomness?!??)
+#  -n <runID>  (Causes run <runID> to be analyzed.  Output data is put into two files: RAxML_parsimonyTree.<runID> and RAxML_info.<info>)
+#  -N <number of trees> (Number of parsimony trees to compute)
+"${PARSIMONATOR}" -s "${SNPSMATRIX}" -n "${SNPSALLOUTPUT}" -N "${NUMTREES}" -p "${PARSIMONYSEED}"
+
+PARSIMONATORINFO="RAxML_info.${SNPSALLOUTPUT}"
+PARSIMONATORTREE="RAxML_parsimonyTree.${SNPSALLOUTPUT}"
+# Next we parse the output of $PARSIMONATOR to report on the generated trees.
+
+INTREE="intree"
+
+BESTPARSIMONYSCORE=`grep "Parsimony tree" RAxML_info.SNPs_all | sort -k6 -n | head -1 | awk '{print $6}'`
+# Create a list of the best parsimony trees in $INFILE
+grep "Parsimony tree" "${PARSIMONATORINFO}" | awk -v "score=${BESTPARSIMONYSCORE}" '$6==score {print $14}' > "${INTREE}"
+NUMBESTPARSIMONYTREES=`cat "${INTREE}" | wc -l | awk '{print $1}'`
+printf "Number of most parsimonious trees from SNPs_all: ${NUMBESTPARSIMONYTREES}"
+printf "Score of those trees: ${BESTPARSIMONYSCORE}"
+
 exit 0
 
 
+# Get majority consensus tree
+rm outfile outtree
+#PHYLIP consense was the only tool i found  that forced resolution of every branch. FastTree to give it branch lengths will crash if some notes have splits to >2 children. But you need to modify seq.h and phylip.h before compiling consense to allow longer names so they don't get truncated
+echo "Y\n" | $kSNP/consense
+
+# Give it branch lengths, optimized for the consensus parsimony tree.
+# Input to force_binary_tree is one tree per file.
+$kSNP/force_binary_tree outtree outtree.resolved
+$kSNP/FastTreeMP -nt -pseudo   -nome -mllen -gamma -gtr -intree outtree.resolved SNPs_all_matrix.fasta >! tree.parsimony.tre
+mv RAxML* TemporaryFilesToDelete/.
 
 
-# concatenate SNP files for each genome into one and sort it, and number the loci
-echo "Concatenate results for each genome and sort by locus to create  SNPs_all_labelLoci"
-date
-printf "" >! all_SNPs_unsorted
-foreach f (fsplit*)
-	set test=`grep -w  $f fileName2genomeName | wc -l`
-	# Note, this will filter out all fsplit files not referenced in 
-	# fileName2genomeName.  Maybe simpler to simply go from the contents of this
-	# file instead? - JN
-	if ($test > 0 ) then
-		set genome=`grep -w  $f fileName2genomeName | awk '{print $2}'`
-		printf "genome: $genome  in Dir.$f\n"
-		if (-s Dir.$f/SNP.positions) then
-			# This is based on mummer output, above. - JN
-			# Add field containing filename (fsplit<N>) inserted in the 4th column.
-			awk -F'\011' -v f=$f '{print $1 "\t" $2 "\t" $3  "\t" f "\t" $4}' Dir.$f/SNP.positions  >> all_SNPs_unsorted
-			#cat Dir.$f/SNP.positions >> all_SNPs_unsorted
-		else
-			# If no mummer output, data is pulled from SNPs file, with the 3rd 
-			# column being 'x', the 4th column being genome name from the file
-			# above, and the fifth column being blank (instead of from mummmer
-			# data).
-			awk -v genome=$genome '{print  $1 "\t" $2 "\tx\t" genome "\t" }' Dir.$f/SNPs >> all_SNPs_unsorted
-		endif
-	endif
-end
-if (  $?SNPs_all ) then 
-	# Remove 1st column from SNPs_all file and append to unsorted SNPs list. - JN
-	# use existing SNP numbering
-	awk -F'\011'  '{print $2 "\t" $3 "\t" $4  "\t" $5 "\t" $6 "\t" $7}' "$SNPs_all" >> all_SNPs_unsorted
-endif
-# Maybe it makes sense to do a merge sort over just appending a bunch of things
-# and then sorting?  Not clear how long this is.  Example 1 is under 1M entries
-# and sorts in under 1 second on my computer. - JN
-sort -u all_SNPs_unsorted >! all_SNPs_sorted
-# Cannot find this command: number_SNPs_all3 - JN
-# It exists in the binary distribution. - JN
-# Additional observations about this executable:  Written in perl, compiled to
-# binary using ActiveState's ActivePerl.  Takes a single commandline argument
-# (will bail, possibly after creating a spurious output file if missing), and
-# will create a file named <argument>_labelLoci as well as a COUNT_SNPs file.
-# Output in testingwas the same as the content of the COUNT_SNPs file. - JN
-# all_SNPs sorted to all_SNPs_sorted_labelLoci doesn't add any lines, does
-# seem to maintain sorting by the first column in the original file (kmers?), but
-# does NOT maintain sorting by subsequent columns.  Appears to:
-# separate distinct kmers with newlines, and apply a single sequential number
-# to each distinct kmer, prepending that number on each line that kmer appears.
-$kSNP/number_SNPs_all3 all_SNPs_sorted
+
+
+
+
+
+
+
+
 $kSNP/rename_from_table3 all_SNPs_sorted_labelLoci fileName2genomeName SNPs_all
 
 
