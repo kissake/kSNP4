@@ -1,6 +1,4 @@
-#!/bin/bash -ex
-
-
+#!/bin/bash
 
 ########################################################################
 
@@ -9,32 +7,15 @@
 # THIS TO POINT TO THE DIRECTORY WHERE YOU HAVE INSTALLED kSNP SCRIPTS
 
 # Try to set this automatically from argv[0] (command path) - JN
-# Per the tcsh man page, :h can be appended to show only the "head"
-# (directory) from the "trailing" (filename) component.  $0 references
-# the command issued when invoking the script.  The requirement that
-# remains is that the other binaries continue to be co-located with
-# this script, or be somewhere else in the PATH
+# $0 references the command issued when invoking the script.  The
+# requirement that remains is that the other binaries continue to
+# be co-located with this script, or be somewhere else in the PATH
 
 export KSNPPATH=`dirname "${0}"`
 
 
 ########################################################################
 
-
-# Parse arguments into a config file
-#### export TEMPCONFIG=`mktemp`
-#### KSNPPATH="${KSNPPATH}" "${KSNPPATH}/kSNP_snips-args" "${TEMPCONFIG}" "${0}" "${@}" || exit 1
-#### 
-#### if [ -s "${TEMPCONFIG}" ] # If the temporary config file we created was written to...
-#### then
-####     # Input the contents as commands to the current script (effectively assigns
-####     # the variables the values in the config file.
-####     . "${TEMPCONFIG}"
-####     rm "${TEMPCONFIG}"
-#### else
-####     echo "Error with argument parsing; temporary config file not generated."
-####     exit 1
-#### fi
 
 #############
 #############
@@ -122,6 +103,7 @@ export ANNOTATELISTHEADERS="headers."${ANNOTATELIST}""
 
 export FASTALIST="fasta_list"
 
+export DEBUGOUTPUT=`mktemp -p "${THISDIR}"`
 
 
 
@@ -447,6 +429,13 @@ echo "VCF=${VCF}"
 echo "DEBUG=${DEBUG}"
 
 
+
+PHASETOTAL=`wc -l "${FILE2GENOME}"`
+PHASECOUNT=0
+PHASENUMBER=0
+${STATUSUPDATE} "${STARTSECONDS}" `date +%s` "${PHASENUMBER}" "${TOTALPHASES}" "Preprocessing" "${PHASECOUNT}" "${PHASETOTAL}" Starting
+
+
 ### Preprocess FASTA input file.
 
 #chesk the fasta genome files to be sure line endings are Unix and fix if they are not
@@ -478,7 +467,7 @@ else
 	touch "${ANNOTATELIST}"
 fi
 
-# Which means that the conversion to unix line-endings needs to be redone...? - JN
+# Correct line endings in our copy of the annotations file.
 #DOS to unix
 perl -i -pe 's/\015\012/\012/g' "${ANNOTATELIST}"	# Windows to unix
 perl -i -pe 's/\015/\012/g' "${ANNOTATELIST}"	# Mac old format to unix
@@ -1234,86 +1223,71 @@ echo "Elapsed time for kSNP in hours: $elapsedTime"
 #############
 #############
 #
-# kSNP rewrite in Bash / Bourne shell stops here.
+# Cleanup run directory of unneeded files.
 #
 #############
 #############
 
+# Suggest having a unique temporary directory for each run
+# instead of deleting the previous temporary directory automatically. - JN
 
+TEMPORARYFILES="TemporaryFilesToDelete"
+# You can delete this Directory if everything works, but it's useful for debugging in case the run fails
+
+rm -r "${TEMPORARYFILES}"
+mkdir "${TEMPORARYFILES}"
+mv RAxML* "${TEMPORARYFILES}/"
+mv -f Dir.* "${TEMPORARYFILES}/"
+if (-e cmds_mummer) then 
+	mv -f cmds_mummer "${TEMPORARYFILES}/"
+	mv -f cmds_parse_mummer "${TEMPORARYFILES}/"
+endif
+mv -f  *.mers "${TEMPORARYFILES}/"
+mv -f Jelly.* "${TEMPORARYFILES}/"
+mv -f SNP_loci.*.mers.fasta "${TEMPORARYFILES}/"
+mv -f kmers*  "${TEMPORARYFILES}/"
+mv -f fsplit* "${TEMPORARYFILES}/"
+mv -f  all_SNPs_unsorted  "${TEMPORARYFILES}/"
+mv -f  all_SNPs_sorted* "${TEMPORARYFILES}/"
+mv -f mer_list "${TEMPORARYFILES}/"
+mv -f *.mers.SNPs_all "${TEMPORARYFILES}/"
+mv -f nodes.* "${TEMPORARYFILES}/"
+mv -f tree_tipAlleleCounts.*.NodeLabel.tre "${TEMPORARYFILES}/"
+mv -f tree_nodeLabel.* "${TEMPORARYFILES}/"
+
+mv cmds* "${TEMPORARYFILES}/"
+mv tree_list1 "${TEMPORARYFILES}/"
+mv tree_list2 "${TEMPORARYFILES}/"
+mv -f fileName2genomeName "${TEMPORARYFILES}/"
+mv intree outtree outfile "${TEMPORARYFILES}/"
+mv SNP_annotations "${TEMPORARYFILES}/"
+mv -f nodes.* "${TEMPORARYFILES}/"
+mv -f tree_tipAlleleCounts.*.NodeLabel.tre "${TEMPORARYFILES}/"
+mv -f tree_nodeLabel.* "${TEMPORARYFILES}/"
+
+mv genbank_from_NCBI.gbk.* "${TEMPORARYFILES}/"
+
+# If we got seemingly good results and aren't debugging, delete the temporary files.
+if [ -s SNPs_all -a -s tree.parsimony.tre -a -s tree_AlleleCounts.parsimony.tre -a -s unresolved_clusters -a -s COUNT_SNPs -a $DEBUG -lt 1 ]
+then
+    
+	rm -r "${TEMPORARYFILES}"
+fi
+
+# Put the debug output into the current working directory (the run directory)
+mv "${DEBUGOUTPUT}" ./kSNP.output
+echo
+echo "Review the run details in ${DIR}/kSNP.output"
 
 exit 0
 
 
 
+#############
+#############
+#
+# kSNP rewrite in Bash / Bourne shell stops here.
+#
+#############
+#############
 
-####
-####
-#### CLEANUP?!??!
-####
-####
-# Suggest prompting user to delete the temporary files directory if the run was
-# successful?  Also suggest having a unique temporary directory for each run
-# instead of deleting the previous temporary directory automatically. - JN
-
-
-# You can delete this Directory if everything works, but it's useful for debugging in case the run fails
-rm -r TemporaryFilesToDelete
-mkdir TemporaryFilesToDelete
-mv RAxML* TemporaryFilesToDelete/.
-mv -f Dir.* TemporaryFilesToDelete/.
-if (-e cmds_mummer) then 
-	mv -f cmds_mummer TemporaryFilesToDelete/.
-	mv -f cmds_parse_mummer TemporaryFilesToDelete/.
-endif
-mv -f  *.mers TemporaryFilesToDelete/.
-mv -f Jelly.* TemporaryFilesToDelete/.
-mv -f SNP_loci.*.mers.fasta TemporaryFilesToDelete/.
-mv -f kmers*  TemporaryFilesToDelete/.
-mv -f fsplit* TemporaryFilesToDelete/.
-mv -f  all_SNPs_unsorted  TemporaryFilesToDelete/.
-mv -f  all_SNPs_sorted* TemporaryFilesToDelete/.
-mv -f mer_list TemporaryFilesToDelete/.
-mv -f *.mers.SNPs_all TemporaryFilesToDelete/.
-mv -f nodes.* TemporaryFilesToDelete/.
-mv -f tree_tipAlleleCounts.*.NodeLabel.tre TemporaryFilesToDelete/.
-mv -f tree_nodeLabel.* TemporaryFilesToDelete/.
-
-mv cmds* TemporaryFilesToDelete/.
-mv tree_list1 TemporaryFilesToDelete/.
-mv tree_list2 TemporaryFilesToDelete/.
-mv -f fileName2genomeName TemporaryFilesToDelete/.
-rm intree outtree outfile
-rm SNP_annotations
-mv -f nodes.* TemporaryFilesToDelete/.
-mv -f tree_tipAlleleCounts.*.NodeLabel.tre TemporaryFilesToDelete/.
-mv -f tree_nodeLabel.* TemporaryFilesToDelete/.
-
-if (-s SNPs_all && -s tree.parsimony.tre && -s tree_AlleleCounts.parsimony.tre && -s unresolved_clusters && -s COUNT_SNPs && $DEBUG<1) then
-	rm -r TemporaryFilesToDelete
-endif
-
-
-rm genbank_from_NCBI.gbk.*
-
-
-
-
-
-
-
-
-
-mv -f nodes.* TemporaryFilesToDelete/.
-mv -f tree_tipAlleleCounts.*.NodeLabel.tre TemporaryFilesToDelete/.
-mv -f tree_nodeLabel.* TemporaryFilesToDelete/.
-
-mv cmds* TemporaryFilesToDelete/.
-mv tree_list1 TemporaryFilesToDelete/.
-mv tree_list2 TemporaryFilesToDelete/.
-mv -f fileName2genomeName TemporaryFilesToDelete/.
-rm intree outtree outfile
-rm SNP_annotations
-
-if (-s SNPs_all && -s tree.parsimony.tre && -s tree_AlleleCounts.parsimony.tre && -s unresolved_clusters && -s COUNT_SNPs && $DEBUG<1) then
-	rm -r TemporaryFilesToDelete
-endif
