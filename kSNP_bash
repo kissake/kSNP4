@@ -145,6 +145,11 @@ do
 	    then
 		CMDLINE_ERROR=1
 		echo "Error: k must be at least 3"
+	    elif [ 31 -lt "${K}" ] # For older versions of jellyfish, this is an issue...
+	    then
+		echo "WARNING: k value greater than 31 detected.  Be aware of two concerns:"
+		echo " 1) Older versions of the jellyfish program (before 2.x) do not support k > 31."
+		echo " 2) Larger values of k are more likely to obscure SNPs than lower values of k."
 	    fi # How to test to determine k is a number?
 	    shift 2 # Argument and value
 	    ;;
@@ -581,7 +586,6 @@ echo "Finished running jellyfish."
 #############
 
 
-### FIXME TODO XXX Removed portion of the kSNP3 tcsh script referencing 'sa' tool as unused.  It overlaps with jellyfish function above.
 
 export FREQUENCYPREFIX="freq"
 export KMERSPREFIX="kmers"
@@ -942,7 +946,7 @@ if [ -s "${ANNOTATELIST}" ]
 then
     REFERENCEGENOME=`head -1 "${ANNOTATELIST}"`
 else
-    REFERENCEGENOME=`head -1 fileName2genomeName | awk '{print $2}'`
+    REFERENCEGENOME=`head -1 "${FILE2GENOME}" | awk '{print $2}'`
 fi
 
 export VCFFILE="VCF.${REFERENCEGENOME}.vcf"
