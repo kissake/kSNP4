@@ -54,7 +54,7 @@ export PARSEMUMMER="${KSNPPATH}/parse_mummer4kSNP3"
 export NUMBERSNPS="${KSNPPATH}/number_SNPs_all3"
 export RENAMEFROMTABLE="${KSNPPATH}/rename_from_table3"
 export PARSESNPSTOVCF="${KSNPPATH}/parse_SNPs2VCF3"
-export SNPSTOFASTAMATRIX="${KSNPPATH}/SNPs_all_2_fasta_matrix3.pl"  # NOTE: This is a .pl file and probably should be the name without a suffix. - JN
+export SNPSTOFASTAMATRIX="${KSNPPATH}/SNPs_all_2_fasta_matrix3"  # NOTE: This is a .pl file and probably should be the name without a suffix. - JN
 export PARSIMONATOR="${KSNPPATH}/parsimonator"
 export CONSENSE="${KSNPPATH}/consense"
 export FORCEBINARYTREE="${KSNPPATH}/force_binary_tree"
@@ -69,7 +69,7 @@ export DISTANCETREE="${KSNPPATH}/distance_tree3"
 export FINDUNRESOLVEDCLUSTERS="${KSNPPATH}/find_unresolved_clusters3"
 export GETGENBANKFILE="${KSNPPATH}/get_genbank_file4-JN"
 export ANNOTATESNPFROMGENBANK="${KSNPPATH}/annotate_SNPs_from_genbankFiles3"
-export PARSEPROTEINANNOTATIONCOUNTS="${KSNPPATH}/parse_protein_annotation_counts"
+export PARSEPROTEINANNOTATIONCOUNTS="${KSNPPATH}/parse_protein_annotation_counts3"
 export PARANN="${KSNPPATH}/ParAnn"
 export STATUSUPDATE="${KSNPPATH}/statusupdate"
 
@@ -660,7 +660,7 @@ do
 
     "${SUBSETMERS}" "${KMERS}"
 
-    [ - e "${REMOVECONFLICTSCOMMANDS}" ] && rm "${REMOVECONFLICTSCOMMANDS}"
+    [ -e "${REMOVECONFLICTSCOMMANDS}" ] && rm "${REMOVECONFLICTSCOMMANDS}"
     touch "${REMOVECONFLICTSCOMMANDS}"
 
     # I think these are the output files from subset_mers3? TODO FIXME XXX
@@ -1156,9 +1156,9 @@ then
     # The annotate_SNPs_from_genbankFiles3 is a complicated script; deserves review / commenting. TODO - JN
     if [ -e "${GENBANKFILEINPUT}" ]
     then
-	"${ANNOTATESNPFROMGENBANK}"   -all "${ALL_ANNOTATIONS}" "${GENBANKFILEINPUT}"
+	"${ANNOTATESNPFROMGENBANK}"   -all "${ALL_ANNOTATIONS}" "${GENBANKFILEINPUT}" || echo "Failure reported, but that's okay, ignoring"
     else
-	"${ANNOTATESNPFROMGENBANK}"   -all "${ALL_ANNOTATIONS}" 
+	"${ANNOTATESNPFROMGENBANK}"   -all "${ALL_ANNOTATIONS}" || echo "Failure reported, but that's okay, ignoring"
     fi
 
     echo -e "Num_NotAnnotatedRegion\tAnnotatedNotProtein\tNum_NonSynon\tNum_Synon\tNS/S\tNSfractionOfAnnotated\tNumLoci\tNum_InAnnotatedGenomes\tNum_NotInAnnotatedGenome" > Annotation_summary
@@ -1212,9 +1212,9 @@ fi
 
 echo "Finished running kSNP"
 date
-set endseconds=`date +%s`
-set elapsedTime=`perl -e "print (($endseconds-$startseconds)/60/60)"`
-echo "Elapsed time for kSNP in hours: $elapsedTime"
+ENDSECONDS=`date +%s`
+ELAPSEDTIME=`perl -e "print ((${ENDSECONDS}-${STARTSECONDS})/60/60)"`
+echo "Elapsed time for kSNP in hours: ${ELAPSEDTIME}"
 
 
 
