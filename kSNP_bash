@@ -67,7 +67,7 @@ export LABELTREEALLELECOUNT="${KSNPPATH}/labelTree_AlleleCount-new3"
 export SNPMATRIXTODIST="${KSNPPATH}/SNP_matrix2dist_matrix3"
 export DISTANCETREE="${KSNPPATH}/distance_tree3"
 export FINDUNRESOLVEDCLUSTERS="${KSNPPATH}/find_unresolved_clusters3"
-export GETGENBANKFILE="${KSNPPATH}/get_genbank_file4-JN"
+export GETGENBANKFILE="${KSNPPATH}/get_genbank_file3"
 export ANNOTATESNPFROMGENBANK="${KSNPPATH}/annotate_SNPs_from_genbankFiles3"
 export PARSEPROTEINANNOTATIONCOUNTS="${KSNPPATH}/parse_protein_annotation_counts3"
 export PARANN="${KSNPPATH}/ParAnn"
@@ -1230,10 +1230,11 @@ rm -r "${TEMPORARYFILES}"
 mkdir "${TEMPORARYFILES}"
 mv RAxML* "${TEMPORARYFILES}/"
 mv -f Dir.* "${TEMPORARYFILES}/"
-if (-e cmds_mummer) then 
-	mv -f cmds_mummer "${TEMPORARYFILES}/"
-	mv -f cmds_parse_mummer "${TEMPORARYFILES}/"
-endif
+if [ -e "${MUMMERCMDS}" ]
+then 
+	mv -f "${MUMMERCMDS}" "${TEMPORARYFILES}/"
+	mv -f "${PARSEMUMMERCMDS}" "${TEMPORARYFILES}/"
+fi
 mv -f  *.mers "${TEMPORARYFILES}/"
 mv -f Jelly.* "${TEMPORARYFILES}/"
 mv -f SNP_loci.*.mers.fasta "${TEMPORARYFILES}/"
