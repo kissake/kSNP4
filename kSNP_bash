@@ -103,8 +103,6 @@ export ANNOTATELISTHEADERS="headers."${ANNOTATELIST}""
 
 export FASTALIST="fasta_list"
 
-export DEBUGOUTPUT=`mktemp -p "${THISDIR}"`
-
 
 
 #############
