@@ -71,7 +71,6 @@ export GETGENBANKFILE="${KSNPPATH}/get_genbank_file4-JN"
 export ANNOTATESNPFROMGENBANK="${KSNPPATH}/annotate_SNPs_from_genbankFiles3"
 export PARSEPROTEINANNOTATIONCOUNTS="${KSNPPATH}/parse_protein_annotation_counts3"
 export PARANN="${KSNPPATH}/ParAnn"
-export STATUSUPDATE="${KSNPPATH}/statusupdate"
 export BUILDTREE="${KSNPPATH}/buildtree"
 
 
@@ -436,11 +435,6 @@ echo "DEBUG=${DEBUG}"
 
 
 
-PHASETOTAL=`wc -l "${FILE2GENOME}"`
-PHASECOUNT=0
-PHASENUMBER=0
-${STATUSUPDATE} "${STARTSECONDS}" `date +%s` "${PHASENUMBER}" "${TOTALPHASES}" "Preprocessing" "${PHASECOUNT}" "${PHASETOTAL}" Starting
-
 
 ### Preprocess FASTA input file.
 
@@ -523,11 +517,6 @@ done
 # FINISHED Setup of environment, update user re: details.
 #############
 
-# PHASETOTAL=`wc -l "${FILE2GENOME}"`
-# PHASECOUNT=0
-# ${STATUSUPDATE} "${STARTSECONDS}" `date +%s` 1 10 "Generating SNPs with jellyfish" "${PHASECOUNT}" "${PHASETOTAL}" Starting
-
-
 #############
 #############
 #
@@ -564,7 +553,7 @@ do
 
 	# Output is not sorted.
 	# Old and new jellyfish files have different names.  Old has _0 tagged onto it.
-	for file in "${JELLYFILE}" "${JELLYFILE}"_*
+	for THISFILE in "${JELLYFILE}" "${JELLYFILE}"_*
 	do
 	    
 	    [ -e "${THISFILE}" ] && "${JELLYFISH}" dump -c "${THISFILE}" >> "${UNSORTEDKMERS}"
