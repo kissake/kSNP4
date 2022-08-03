@@ -72,6 +72,7 @@ export ANNOTATESNPFROMGENBANK="${KSNPPATH}/annotate_SNPs_from_genbankFiles3"
 export PARSEPROTEINANNOTATIONCOUNTS="${KSNPPATH}/parse_protein_annotation_counts3"
 export PARANN="${KSNPPATH}/ParAnn"
 export STATUSUPDATE="${KSNPPATH}/statusupdate"
+export BUILDTREE="${KSNPPATH}/buildtree"
 
 
 
@@ -1051,7 +1052,7 @@ do
     # Build the tree from all the SNPs.
     "${SNPSTOFASTAMATRIX}" "${SNPSALLOUTPUT}" "${SNPSALLMATRIXFASTA}" "${SNPSALLMATRIX}"
     
-    "${KSNPPATH}/kSNP_snips-buildtree" "${SNPSALLOUTPUT}" "${THISTREE}"
+    "${BUILDTREE}" "${SNPSALLOUTPUT}" "${THISTREE}"
 
 
     if [ -n "${MIN_FRACTION_WITH_LOCUS}" ] # Requested a tree for SNPs in the given fraction of genomes.
@@ -1064,13 +1065,13 @@ do
 	"${SNPSTOFASTAMATRIX}" "${MAJORITYSNPS}" "${SNPSMAJORITYMATRIXFASTA}" "${SNPSMAJORITYMATRIX}"
     
 	# Build trees for SNPs in greater than $MIN_FRACTION_WITH_LOCUS fraction of genomes
-	"${KSNPPATH}/kSNP_snips-buildtree" "${MAJORITYSNPS}" "${THISTREE}"
+	"${BUILDTREE}" "${MAJORITYSNPS}" "${THISTREE}"
 	
 	if [ 1 -eq "${CORE}" ]  # Also requested tree for the core SNPs
 	then
 	    "${SNPSTOFASTAMATRIX}" "${CORESNPS}" "${SNPSCOREMATRIXFASTA}" "${SNPSCOREMATRIX}"
 	    # Build trees for SNPs that are in all genomes.
-	    "${KSNPPATH}/kSNP_snips-buildtree" "${CORESNPS}" "${THISTREE}"
+	    "${BUILDTREE}" "${CORESNPS}" "${THISTREE}"
 	fi
 	
 	
@@ -1085,7 +1086,7 @@ do
 	"${SNPSTOFASTAMATRIX}" "${CORESNPS}" "${SNPSCOREMATRIXFASTA}" "${SNPSCOREMATRIX}"
 
 	# Build trees for SNPs that are in all genomes.
-	"${KSNPPATH}/kSNP_snips-buildtree" "${CORESNPS}" "${THISTREE}"
+	"${BUILDTREE}" "${CORESNPS}" "${THISTREE}"
 	
     fi
 done
