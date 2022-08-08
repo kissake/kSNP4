@@ -24,9 +24,9 @@ perlmonolith = false
 
 # The directory names to use in the binary package
 packagedir = kSNP$(ver)_Linux_package
-binarydir = $(packagedir)/kSNP3
+binarydir = $(packagedir)/kSNP4
 
-all_products = kSNP3.1_Source.zip kSNP3.zip Examples.zip
+all_products = kSNP4_Source.zip kSNP4.zip Examples.zip
 
 # All of the perl scripts.  Used to generate binaries in the perlmonolith case.
 perl = add_paths3 annotate_SNPs_from_genbankFiles3 \
@@ -101,25 +101,25 @@ docs: binaries/THE\ BSD\ OPENSOURCE\ LICENSE.pdf binaries/kSNP3.021\ User\ Guide
 # being successful.
 # I think this defaults to the revision currently checked out, minus local
 # revisions, and excludes the .hg directory to avoid sharing extra detail
-kSNP4.1_Source.zip: kSNP4.zip
+kSNP4_Source.zip: kSNP4.zip
 	hg archive --exclude ".hg*" --prefix kSNP4.1_Source $@
 
 
 # Build a different zip file depending on whether we are using a monolithic
 # perl binary.
 ifeq ($(perlmonolith),true)
-$(packagedir): $(docs) kSNP3 $(perlbin) binaries/perlscripts $(pythonbin) $(dependencies)
+$(packagedir): $(docs) kSNP4 $(perlbin) binaries/perlscripts $(pythonbin) $(dependencies)
 	mkdir -p $(packagedir)
 	mkdir -p $(binarydir)
 	for doc in $(docs) ; do cp $$doc $(packagedir) ; done
-	for bin in $(perlbin) $(pythonbin) binaries/perlscripts kSNP3 ; do cp $$bin $(binarydir) ; done
+	for bin in $(perlbin) $(pythonbin) binaries/perlscripts kSNP4 ; do cp $$bin $(binarydir) ; done
 	for dep in $(dependencies) ; do cp $$dep $(binarydir) ; done
 else
-$(packagedir): $(docs) kSNP3 $(perlbin) $(pythonbin) $(dependencies)
+$(packagedir): $(docs) kSNP4 $(perlbin) $(pythonbin) $(dependencies)
 	mkdir -p $(packagedir)
 	mkdir -p $(binarydir)
 	for doc in $(docs) ; do cp $$doc $(packagedir) ; done
-	for bin in $(perlbin) $(pythonbin) kSNP3 ; do cp $$bin $(binarydir) ; done
+	for bin in $(perlbin) $(pythonbin) kSNP4 ; do cp $$bin $(binarydir) ; done
 	for dep in $(dependencies) ; do cp $$dep $(binarydir) ; done
 endif
 
@@ -255,7 +255,9 @@ parsimonator-src.zip:
 
 # Automated testing for the build
 
-Examples.zip: Example1 Example2
+Examples.zip: Examples/Example1 Examples/Example2
+	zip --symlinks -r "$@" "$<"
+
 
 test: example1 example2
 
