@@ -57,7 +57,7 @@ foreach my $nodeid1 (sort keys %unresolved_cluster) {
 }
 print   "#Uniquely resolved\n";
 foreach my $id1 (sort keys %strain){
-    if (!defined %{$unresolved_cluster{$id1}}) {
+    if (! %{$unresolved_cluster{$id1}}) {
         $cluster_count++;
         print  "$cluster_count\t$id1\n";
     }
