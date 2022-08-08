@@ -102,6 +102,7 @@ export ANNOTATELIST="annotate_list"
 export ANNOTATELISTHEADERS="headers."${ANNOTATELIST}""
 
 export FASTALIST="fasta_list"
+export MINIMUMK=9 # The minimum acceptable value of K
 
 
 
@@ -138,36 +139,58 @@ while [ ${#} -gt 0 ]  # While we have more arguments to process...
 do
     case "${1}" in    # "switch" / case  based on what the argument is.
 	-k)
-	    K="${2}"
-	    if [ 3 -gt "${K}" ] # Is K at least 3?
+	    if [ -z "${K}" ] # if this is the first time k is being set...
 	    then
+		K="${2}"
+		if [ "${MINIMUMK}" -gt "${K}" ] # Is K at least 3?
+		then
+		    CMDLINE_ERROR=1
+		    echo "Error: k must be at least ${MINIMUMK}"
+		elif [ 31 -lt "${K}" ] # For older versions of jellyfish, this is an issue...
+		then
+		    echo "WARNING: k value greater than 31 detected.  Be aware of two concerns:"
+		    echo " 1) Older versions of the jellyfish program (before 2.x) do not support k > 31."
+		    echo " 2) Larger values of k are more likely to obscure SNPs than lower values of k."
+		fi # How to test to determine k is a number?
+	    else
+		# Otherwise, K was already set to something and the user tried to set it
+		# again, which is an error.
 		CMDLINE_ERROR=1
-		echo "Error: k must be at least 3"
-	    elif [ 31 -lt "${K}" ] # For older versions of jellyfish, this is an issue...
-	    then
-		echo "WARNING: k value greater than 31 detected.  Be aware of two concerns:"
-		echo " 1) Older versions of the jellyfish program (before 2.x) do not support k > 31."
-		echo " 2) Larger values of k are more likely to obscure SNPs than lower values of k."
-	    fi # How to test to determine k is a number?
+		echo "Error: You may only specify -k once on the commandline."
+	    fi
 	    shift 2 # Argument and value
 	    ;;
 	
 	-in)
-	    FASTALISTINPUT=`"${ADD_PATHS}" "${2}" "${THISDIR}"`
-	    if [ -e "${FASTALISTINPUT}" ] # Does FASTALISTINPUT file exist?
+	    if [ -z "${FASTALISTINPUT}" ]  # If this is the first time this variable is being set...
 	    then
-		echo "fasta_list: ${FASTALISTINPUT}"
+		FASTALISTINPUT=`"${ADD_PATHS}" "${2}" "${THISDIR}"`
+		if [ -e "${FASTALISTINPUT}" ] # Does FASTALISTINPUT file exist?
+		then
+		    echo "fasta_list: ${FASTALISTINPUT}"
+		else
+		    CMDLINE_ERROR=1
+		    echo "Error: -in argument must be a file that exists (did not find ${FASTALISTINPUT})"
+		fi
 	    else
+		# In this case, the input file was already set to something and the user tried
+		# to set it again, which is an error.
 		CMDLINE_ERROR=1
-		echo "Error: -in argument must be a file that exists (did not find ${FASTALISTINPUT})"
-	    fi		
+		echo "Error: You may only specify -in once on the commandline."
+	    fi
 	    shift 2 # Argument and value
 	    ;;
 
 	-outdir)
-	    DIR=`"${ADD_PATHS}" "${2}" "${THISDIR}"`
-	    echo "Output directory: ${DIR}"
-	    # Where is this directory created?  Do we create with -p?
+	    if [ -z "${FASTALISTINPUT}" ]  # If this is the first time this variable is being set...
+	    then
+		DIR=`"${ADD_PATHS}" "${2}" "${THISDIR}"`
+		echo "Output directory: ${DIR}"
+		# Where is this directory created?  Do we create with -p?
+	    else # The output directory was already set when we got here; this is an error.
+		CMDLINE_ERROR=1
+		echo "Error: You may only specify -outdir once on the commandline."
+	    fi
 	    shift 2 # Argument and value
 	    ;;
 	
@@ -315,8 +338,18 @@ Optional arguments:
 
 USAGE
 
+    # Special case: If the user didn't specify -k, make a helpful suggestion to them.
+    if [ -z "${K}" ]
+    then
+	echo
+	echo "If you want a suggestion of an appropriate value for -k, you might try"
+	echo "running this command to analyze the input file and suggest a value:"
+	echo "    Kchooser4 <inputfile>"
+    fi
+
     exit 1
 fi # if there was a parsing error.
+
 
 if [ 1 -eq "${DEBUG}" ]
 then
