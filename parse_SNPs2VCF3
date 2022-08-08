@@ -162,7 +162,7 @@ sub read_snps_from_SNPs_all_file {
             my $position = $4;
             my $name= $5;
             chomp($name);
-            $fors{$primer}{$name}{$position} = $snp_char;   # global, but gets reset
+            $fors{$primer}{$name}{$position} = $snp_char;   # global, but gets reset ### - JN - Beg to differ.  Does not get reset.
             $locus{$primer}=$locus_num;  # global
             #print "$primer\t$fors{$primer}{$id}{$position}\t$position\t$id\n";
         }
