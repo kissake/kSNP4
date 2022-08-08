@@ -12,10 +12,17 @@ use Storable;
 my %clades=();
 
 my $all_snps_file = $ARGV[0];
+# A pre-computed hash that contains all possible clade structures
+# for the given nodes.
 my $NodeHashFile = $ARGV[1];
 my $treefile=$ARGV[2];
 my $NodeSigCounts=$ARGV[3];
 
+# Able to get clade info from legacy text format file or reading in
+# a pre-generated hash table.  Which is faster?  Would it be faster
+# or otherwise better to put generator in the same script (no need
+# to serialize the data at all) - JN
+# 
 # Determine file format from filename.  Potential for error? - JN
 if ($NodeHashFile =~ /perlhash/) {
     %clades=%{ retrieve($NodeHashFile) };
@@ -52,6 +59,12 @@ my %gl=();
 my %core=();
 
 
+# Traverse all nodes in %clades hash table (n squared) to create
+# a %idsInNode hash table to permit referencing a node by the combo
+# of the root and the list of nodes that leafed under it
+# specifically.  Perhaps this should be loaded too, as it was
+# created with the %clades hash. - JN
+
 # @{$clades{$nodeID}}=($id1,$id2,....)
 foreach $root (keys %clades) {
     foreach $node (keys %{$clades{$root}}) {
@@ -69,12 +82,20 @@ $date = `date`; print "$date\n";
 my %num_map_to_node=();
 my $snp_chars;
 
+# Process the sequences in the order they occur in the SNPs_all file
+# (does order matter?  If not, and if this SNPs_all file can get big,
+# then the sorting may have a performance impact. - JN
 foreach my $sequence ( sort {$locus{$a} <=> $locus{$b} } keys %fors) {  
     my @all_variants=();
     my %all_vars=();
+    # Process the sequence in order by the ID of the genome source.
     foreach my $id (sort keys %{$fors{$sequence}}) {
 	
 	my %already_there=();
+	# Cycle through all of the possible positions where this
+	# sequence occurs in this genome (not sorted?), and for
+	# each valid SNP, add the current genome to the list of
+	# genomes where that SNP occurs for this sequence.
 	foreach my $position ( keys %{$fors{$sequence}{$id}}) {
 	    $snp_chars=$fors{$sequence}{$id}{$position};
 	    if ($snp_chars eq "") {
@@ -82,6 +103,8 @@ foreach my $sequence ( sort {$locus{$a} <=> $locus{$b} } keys %fors) {
 	    }
 	    #print "snp_chars: $snp_chars\n";
 	    if (!defined $already_there{$snp_chars} ) { 
+		# This ensures this genome is only added to the list
+		# once for each SNP.
 		push(@{$all_vars{$snp_chars}},$id);
 		$already_there{$snp_chars} = 1;
 	    }
@@ -91,18 +114,28 @@ foreach my $sequence ( sort {$locus{$a} <=> $locus{$b} } keys %fors) {
 
     # make hash of Core SNPs
     if ( $num_ids > scalar(keys %{$fors{$sequence}}) ) {
+	# This sequence doesn't occur in all genome sources.
 	$core{$sequence}=0;
     } else {
+	# This sequence DOES occur in all genome sources.
 	$core{$sequence}=1;
     }
-	 
+
+    # For each possible genome source
     foreach my $root (keys %clades) {
 	my $yes_node=0;
 	foreach my $snp_chars (keys %all_vars) {
+	    # Recommend making join...sort...genomes into a subroutine - JN
 	    my $idstring=join(",",sort(@{$all_vars{$snp_chars}}));
+	    # Create an entry in the IDstring => sequence hash table %group,
 	    $group{$idstring}{$sequence}=1;
+	    # and create one in the sequence => IDstring hash table %gl
 	    $gl{$sequence}{$idstring}=1;
 	    if (defined $idsInNode{$idstring}{$root}) { # Not homoplastic
+		# If this sequence + SNP occurs in all the leaves under any
+		# node when this currently selected node was the root, this
+		# is a good match, and a point in favor of this node being
+		# the root. - JN
 		$yes_node=1;
 	    } 
 	}
@@ -198,7 +231,10 @@ my $number_nodes= scalar (keys %{$clades{$best_root}});
 #if ($save_homoplasy  == 1) {
     my %hp_ids=();
     my %hp_count=();
-       
+
+    # Start the unique numbering of homoplasy groups at the number of nodes (why?
+    # Possibly so that we can number the nodes individually as their own groups /
+    # have a number that is unique between nodes and groups?)
     my $homoplasy_group_count=$number_nodes;
     
     foreach my $idstring (sort {scalar(keys %{$group{$b}}) <=> scalar(keys %{$group{$a}}) } keys %group) {
@@ -215,7 +251,7 @@ my $number_nodes= scalar (keys %{$clades{$best_root}});
 	    
 	  
 	    if ($count_SNPs > 0) {
-	
+		# Uniquely number the homoplasy groups.
 		$homoplasy_group_count++;
 		$hp_ids{$homoplasy_group_count}=$idstring;
 		$hp_count{$homoplasy_group_count}=$count_SNPs;
@@ -229,6 +265,7 @@ my $number_nodes= scalar (keys %{$clades{$best_root}});
     my $Homoplasy_groups="Homoplasy_groups";
     open GROUPS,">$Homoplasy_groups";
 
+    # Sort the groups based on the value reported as NumberSNPs ($count_SNPs below)
     foreach my $homoplasy_group_count (sort { $hp_count{$b} <=> $hp_count{$a} } keys %hp_count) {   
 	my $idstring=$hp_ids{$homoplasy_group_count};
 	my $group="Group.".$homoplasy_group_count;
@@ -280,6 +317,15 @@ print "Finished SNPs2nodes-new\n";
 ########################## Subroutines ##############
 
 # This subroutine is only used once. - JN
+# Some of the structures generated by this subroutine (fors, locus)
+# are generated in other contexts also.  Perhaps this can be a
+# shared subroutine / module. - JN
+#
+# how do we cope when position data isn't available (set to "x")?
+# It looks like that means that each k-mer can only occur once for
+# that ID, or the snp_char will be overwritten and one or more SNP
+# will be lost...?  - JN
+# 
 sub read_snps_from_SNPs_all_file {
     if (-e $all_snps_file) {
 	
@@ -312,6 +358,8 @@ sub read_snps_from_SNPs_all_file {
 
 
 # This subroutine not used. - JN
+# This subroutine also exists in at least one script (or similar).  Perhaps it should
+# also be in a module - JN
 ###################
 sub revcomp {
     my $seq = shift;
