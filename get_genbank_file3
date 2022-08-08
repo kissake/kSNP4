@@ -75,6 +75,7 @@ foreach my $gi (sort values %strain2gi) {
 }
 close OUT;
 
+# Not sure why exit with an error by default?
 exit 1;
 
 
