@@ -1181,9 +1181,9 @@ then
     # The annotate_SNPs_from_genbankFiles3 is a complicated script; deserves review / commenting. TODO - JN
     if [ -e "${GENBANKFILEINPUT}" ]
     then
-	"${ANNOTATESNPFROMGENBANK}"   -all "${ALL_ANNOTATIONS}" "${GENBANKFILEINPUT}" || echo "Failure reported, but that's okay, ignoring"
+	"${ANNOTATESNPFROMGENBANK}"   -all "${ALL_ANNOTATIONS}" "${GENBANKFILEINPUT}" || true # This program returns an error regardless of success / failure.
     else
-	"${ANNOTATESNPFROMGENBANK}"   -all "${ALL_ANNOTATIONS}" || echo "Failure reported, but that's okay, ignoring"
+	"${ANNOTATESNPFROMGENBANK}"   -all "${ALL_ANNOTATIONS}" || true # This program returns an error regardless of success / failure.
     fi
 
     echo -e "Num_NotAnnotatedRegion\tAnnotatedNotProtein\tNum_NonSynon\tNum_Synon\tNS/S\tNSfractionOfAnnotated\tNumLoci\tNum_InAnnotatedGenomes\tNum_NotInAnnotatedGenome" > Annotation_summary
@@ -1214,9 +1214,6 @@ then
     
     "${PARSEPROTEINANNOTATIONCOUNTS}" SNP_annotations > Protein_Annotation_counts
 
-    # ParAnn is the compiled version of ParAnn.py, presumably.  Should be verified,
-    # and the process for compiling should be determined.  Once this is understood,
-    # perhaps a makefile for the binaries?  TODO - JN
     #run ParAnn
     "${PARANN}"
     
