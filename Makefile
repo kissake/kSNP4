@@ -24,7 +24,7 @@ perlmonolith = true
 
 # The directory names to use in the binary package
 packagedir = kSNP$(ver)_Linux_package
-binarydir = $(packagedir)/kSNP3
+binarydir = $(packagedir)/kSNP4
 
 # All of the perl scripts.  Used to generate binaries in the perlmonolith case.
 perl = add_paths3 annotate_SNPs_from_genbankFiles3 \
@@ -81,7 +81,7 @@ pythonbin = binaries/FTPgenomes binaries/number_SNPs_all3 binaries/ParAnn binari
 # Default build target
 #################################################################
 
-all: kSNP3-source.zip kSNP3.zip Examples.zip 
+all: kSNP4-source.zip kSNP4.zip Examples.zip 
 
 #################################################################
 #################################################################
@@ -99,27 +99,27 @@ docs: binaries/THE\ BSD\ OPENSOURCE\ LICENSE.pdf binaries/kSNP3.021\ User\ Guide
 # being successful.
 # I think this defaults to the revision currently checked out, minus local
 # revisions, and excludes the .hg directory to avoid sharing extra detail
-kSNP3.1_Source.zip: kSNP3.zip
-	hg archive --exclude ".hg*" --prefix kSNP3.1_Source $@
+kSNP4.1_Source.zip: kSNP4.zip
+	hg archive --exclude ".hg*" --prefix kSNP4.1_Source $@
 
 
 # Build a different zip file depending on whether we are using a monolithic
 # perl binary.
 ifeq ($(perlmonolith),true)
-$(packagedir): $(docs) kSNP3 $(perlbin) binaries/perlscripts $(pythonbin)
+$(packagedir): $(docs) kSNP4 $(perlbin) binaries/perlscripts $(pythonbin)
 	mkdir -p $(packagedir)
 	mkdir -p $(binarydir)
 	for doc in $(docs) ; do cp $$doc $(packagedir) ; done
-	for bin in $(perlbin) $(pythonbin) binaries/perlscripts kSNP3 ; do cp $$bin $(binarydir) ; done
+	for bin in $(perlbin) $(pythonbin) binaries/perlscripts kSNP4 ; do cp $$bin $(binarydir) ; done
 else
-$(packagedir): $(docs) kSNP3 $(perlbin) $(pythonbin)
+$(packagedir): $(docs) kSNP4 $(perlbin) $(pythonbin)
 	mkdir -p $(packagedir)
 	mkdir -p $(binarydir)
 	for doc in $(docs) ; do cp $$doc $(packagedir) ; done
-	for bin in $(perlbin) $(pythonbin) kSNP3 ; do cp $$bin $(binarydir) ; done
+	for bin in $(perlbin) $(pythonbin) kSNP4 ; do cp $$bin $(binarydir) ; done
 endif
 
-kSNP3.zip: $(packagedir)
+kSNP4.zip: $(packagedir)
 	zip --symlinks -r $@ $(packagedir)
 
 #################################################################
@@ -189,11 +189,11 @@ Examples.zip: Example1 Example2
 
 test: example1 example2
 
-example1: binaries kSNP3
+example1: binaries kSNP4
 
-example2: binaries kSNP3
+example2: binaries kSNP4
 
 clean:
 	rm binaries/*
 	rm -r $(packagedir)
-	rm kSNP3.zip
+	rm kSNP4.zip
