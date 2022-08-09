@@ -182,7 +182,7 @@ do
 	    ;;
 
 	-outdir)
-	    if [ -z "${FASTALISTINPUT}" ]  # If this is the first time this variable is being set...
+	    if [ -z "${DIR}" ]  # If this is the first time this variable is being set...
 	    then
 		DIR=`"${ADD_PATHS}" "${2}" "${THISDIR}"`
 		echo "Output directory: ${DIR}"
@@ -567,7 +567,7 @@ done
 
 
 date # Output the date for timing info.
-echo "Running jellyfish to find k-mers"
+echo "Running jellyfish to find kmers"
 
 # Extract the names of the files from the list we already created, and iterate through the list.
 cat "${FILE2GENOME}" | while read FILE REST
@@ -579,7 +579,7 @@ do
 	JELLYFILE="Jelly.${FILE}"
 	echo "${FILE}"  # Perhaps we should print the genome instead?  It is in $REST at this time
 
-	# Extract all of the k-mers from the input fasta files ( along with counts? or is that just a placeholder? )
+	# Extract all of the kmers from the input fasta files ( along with counts? or is that just a placeholder? )
 	"${JELLYFISH}" count -C -o "${JELLYFILE}" -m "${K}" -s "${HASHSIZE}" -t "${NUM_CPUS}" "${FILE}"
 
 	# Output is not sorted.
@@ -603,7 +603,7 @@ echo "Finished running jellyfish."
 
 
 #############
-# START Filtering k-mers from jellyfish based on frequency.
+# START Filtering kmers from jellyfish based on frequency.
 #############
 
 
@@ -625,7 +625,7 @@ do
     MIN_KMER_COVERAGE=`"${GETQUANTILE}" "${FREQUENCY}"`
     echo "minimum kmer coverage for ${FILE} is ${MIN_KMER_COVERAGE}"
 
-    # Filter out k-mers with frequency lower than the $MIN_KMER_COVERAGE
+    # Filter out kmers with frequency lower than the $MIN_KMER_COVERAGE
     awk -v "m=${MIN_KMER_COVERAGE}" '$2>=m {print}' "${KMERSALL}" > "${KMERS}"
 
     # Remove temporary frequency file
@@ -636,30 +636,30 @@ date
 echo "Filtered out low-frequency kmers."
 
 #############
-# FINISHED Filtering k-mers from jellyfish based on frequency.
+# FINISHED Filtering kmers from jellyfish based on frequency.
 #############
 
 
 
 #############
 #
-# START Remove conflicting k-mers.  A k-mer is conflicting there are multiple
-# 'alleles' (k-mers matching in all but the center) within a given genome.
+# START Remove conflicting kmers.  A k-mer is conflicting there are multiple
+# 'alleles' (kmers matching in all but the center) within a given genome.
 #
 # This is an issue because you cannot discern a mutation between two genomes
-# when there are multiple matching k-mers _within_ a genome using this tool
-# which is restricted to looking at the k-mers without the full genome context.
+# when there are multiple matching kmers _within_ a genome using this tool
+# which is restricted to looking at the kmers without the full genome context.
 #
 #############
 
 ### Input: kmers.fsplit<N> (all)
 ### Output: Dir.fsplit<N>/X*.mers (many for each fsplit<N> source) 
 ### Output: kmers_fsplit<N>.conflictsDeleted (each)
-### Transform: k-mers in the kmers.fsplit<N> file sorted into buckets of 
+### Transform: kmers in the kmers.fsplit<N> file sorted into buckets of 
 ###   identical prefix
 ### Transform: A conflict is when a k-mer matches another in every character
 ###   except the center.  These are removed from the buckets of identical
-###   prefix above, and the resulting k-mers are simply listed in the output
+###   prefix above, and the resulting kmers are simply listed in the output
 ###   file (.conflictsDeleted) in sorted order.
 
 # Challenges:
@@ -708,7 +708,7 @@ date
 
 #############
 #
-# FINISHED Remove conflicting k-mers.
+# FINISHED Remove conflicting kmers.
 #
 #############
 
@@ -728,7 +728,7 @@ done
 
 "${PARALLELCOMMANDS}" "${NUM_CPUS}" "${SORT_COMMANDS}"
 
-echo "Finished merging k-mers across genomes."
+echo "Finished merging kmers across genomes."
 date
 
 
@@ -789,8 +789,8 @@ else # SNPs_all argument did NOT point to a file that exists....
 	do
 	    SUBSETLOCI="${SNPLOCIPREFIX}.${SUBSET}.${SNPLOCISUFFIX}"
 
-	    # Note that $PICKSNPSFROMKMERS assumes a sorted input which is a bucket of filtered k-mers from all genomes with a common prefix.  It was sorted above.
-	    # This will filter out k-mers that don't have a SNP, and for those that do, prints
+	    # Note that $PICKSNPSFROMKMERS assumes a sorted input which is a bucket of filtered kmers from all genomes with a common prefix.  It was sorted above.
+	    # This will filter out kmers that don't have a SNP, and for those that do, prints
 	    # all of the polymorphisms in a fasta-like file that is labeled with the locus (k-mer with the nucleotide in the center replaced with a period), followed by
 	    # an underscore, then the nucleotide that was in the center (allele identifier), with the contents of the entry being the sequence itself (no period separation)
 	    # The output is sorted on locus and NOT sorted on allele identifier.  This output is put into a corresponding bucket named to indicate that it contains loci.
@@ -884,7 +884,7 @@ then
 		awk -F'\011' '{print ">" $1 "_" $2 "\n" $3 }' "${GENOMEDIRECTORY}/${SNPSPREFIX}" > "${SNPSINFASTAFORMAT}"
 
 		# These two commands output the SNP positions data.
-		# Mummer takes the per-SNP (loci + specific nucleotide) labeled list of interesting k-mers, and finds where they are
+		# Mummer takes the per-SNP (loci + specific nucleotide) labeled list of interesting kmers, and finds where they are
 		# in the original genome(s).  The output is loci with a . replacing the differing nucleotide, an underscore, and the nucleotide
 		# that was in the middle.
 		echo "${MUMMER} -maxmatch -l ${K} -b -c ${SNPSINFASTAFORMAT} ${GENOMEFILE} > ${GENOMEDIRECTORY}/${MUMMEROUTPUT}" >> "${MUMMERCMDS}"
@@ -929,9 +929,9 @@ do
 	# Output SNP data, though we don't have location and direction info, and for some reason we put the genome name
 	# where the file name should go ???  (we have both genome name and filename, so that's weird, right?)
 	# We can get a lot of the same mapping (filename, ascension number, genome name) from non-mummer info, so this
-	# seems weak sauce.  Also the output is v. different in terms of the k-mers / SNPs that show up (it seems).
+	# seems weak sauce.  Also the output is v. different in terms of the kmers / SNPs that show up (it seems).
 	# TODO FIXME XXX not sure what's going on here.
-	echo "Warning, mummer output missing!"
+	echo "No positions file ${POSITIONSFILE} found, generating all_SNPs_unsorted without position data."
 	awk -v "genome=${GENOME}" '{print  $1 "\t" $2 "\tx\t" genome "\t" }' "${SNPSFILE}" >> "${ALLSNPSUNSORTED}"
     fi
 done
@@ -1111,6 +1111,14 @@ do
     fi
 done
 
+### Copy default tree files to default tree names:
+for EACH in tree tree_AlleleCounts tree_tipAlleleCounts
+do
+    [ -e "${EACH}.SNPs_all.parsimony.tre" ] && cp "${EACH}.SNPs_all.parsimony.tre" "${EACH}.parsimony.tre"
+    [ -e "${EACH}.SNPs_all.parsimony.NodeLabel.tre" ] && cp "${EACH}.SNPs_all.parsimony.NodeLabel.tre" "${EACH}.parsimony.NodeLabel.tre"
+done
+
+
 
 export UNRESOLVEDCLUSTERS="unresolved_clusters"
 
@@ -1168,7 +1176,7 @@ then
 	then
 	    FILE=`grep -w  "${GENOME}" "${FASTALIST}"  | awk -F'\011' '{print $1}'`
 	    echo "${FILE}"
-	    "${GETGENBANKFILE}" "${FILE}" "genbank_from_NCBI.gbk.${COUNT}"
+	    "${GETGENBANKFILE}" "${FILE}" "genbank_from_NCBI.gbk.${COUNT}" || true  # This program has a mandatory exit(1), causing errors under some circumstances.
 	    fgrep ">" "${FILE}" | sed -e "s/^>/>${GENOME} /" >> "${ANNOTATELISTHEADERS}"
 	    COUNT=`expr "${COUNT}" + 1` # Increment $COUNT
 	fi
@@ -1256,51 +1264,66 @@ echo "Elapsed time for kSNP in hours: ${ELAPSEDTIME}"
 TEMPORARYFILES="TemporaryFilesToDelete"
 # You can delete this Directory if everything works, but it's useful for debugging in case the run fails
 
-rm -r "${TEMPORARYFILES}"
+# If the directory exists (leftover), clear it out.
+[ -d "${TEMPORARYFILES}" ] && rm -r "${TEMPORARYFILES}"
+
 mkdir "${TEMPORARYFILES}"
-mv RAxML* "${TEMPORARYFILES}/"
-mv -f Dir.* "${TEMPORARYFILES}/"
+mv RAxML* "${TEMPORARYFILES}/" || true
+mv -f Dir.* "${TEMPORARYFILES}/" || true
 if [ -e "${MUMMERCMDS}" ]
 then 
-	mv -f "${MUMMERCMDS}" "${TEMPORARYFILES}/"
-	mv -f "${PARSEMUMMERCMDS}" "${TEMPORARYFILES}/"
+	mv -f "${MUMMERCMDS}" "${TEMPORARYFILES}/" || true
+	mv -f "${PARSEMUMMERCMDS}" "${TEMPORARYFILES}/" || true
 fi
-mv -f  *.mers "${TEMPORARYFILES}/"
-mv -f Jelly.* "${TEMPORARYFILES}/"
-mv -f SNP_loci.*.mers.fasta "${TEMPORARYFILES}/"
-mv -f kmers*  "${TEMPORARYFILES}/"
-mv -f fsplit* "${TEMPORARYFILES}/"
-mv -f  all_SNPs_unsorted  "${TEMPORARYFILES}/"
-mv -f  all_SNPs_sorted* "${TEMPORARYFILES}/"
-mv -f mer_list "${TEMPORARYFILES}/"
-mv -f *.mers.SNPs_all "${TEMPORARYFILES}/"
-mv -f nodes.* "${TEMPORARYFILES}/"
-mv -f tree_tipAlleleCounts.*.NodeLabel.tre "${TEMPORARYFILES}/"
-mv -f tree_nodeLabel.* "${TEMPORARYFILES}/"
+mv -f  *.mers "${TEMPORARYFILES}/" || true
+mv -f Jelly.* "${TEMPORARYFILES}/" || true
+mv -f SNP_loci.*.mers.fasta "${TEMPORARYFILES}/" || true
+mv -f kmers*  "${TEMPORARYFILES}/" || true
+mv -f fsplit* "${TEMPORARYFILES}/" || true
+mv -f  all_SNPs_unsorted  "${TEMPORARYFILES}/" || true
+mv -f  all_SNPs_sorted* "${TEMPORARYFILES}/" || true
+mv -f mer_list "${TEMPORARYFILES}/" || true
+mv -f *.mers.SNPs_all "${TEMPORARYFILES}/" || true
+mv -f nodes.* "${TEMPORARYFILES}/" || true
+mv -f tree_tipAlleleCounts.*.NodeLabel.tre "${TEMPORARYFILES}/" || true
+mv -f tree_nodeLabel.* "${TEMPORARYFILES}/" || true
 
-mv cmds* "${TEMPORARYFILES}/"
-mv tree_list1 "${TEMPORARYFILES}/"
-mv tree_list2 "${TEMPORARYFILES}/"
-mv -f fileName2genomeName "${TEMPORARYFILES}/"
-mv intree outtree outfile "${TEMPORARYFILES}/"
-mv SNP_annotations "${TEMPORARYFILES}/"
-mv -f nodes.* "${TEMPORARYFILES}/"
-mv -f tree_tipAlleleCounts.*.NodeLabel.tre "${TEMPORARYFILES}/"
-mv -f tree_nodeLabel.* "${TEMPORARYFILES}/"
+mv cmds* "${TEMPORARYFILES}/" || true
+mv tree_list1 "${TEMPORARYFILES}/" || true
+mv tree_list2 "${TEMPORARYFILES}/" || true
+mv -f fileName2genomeName "${TEMPORARYFILES}/" || true
+mv intree outtree outfile "${TEMPORARYFILES}/" || true
+mv SNP_annotations "${TEMPORARYFILES}/" || true
+mv -f nodes.* "${TEMPORARYFILES}/" || true
+mv -f tree_tipAlleleCounts.*.NodeLabel.tre "${TEMPORARYFILES}/" || true
+mv -f tree_nodeLabel.* "${TEMPORARYFILES}/" || true
+mv consense.out intree.source outtree.resolved "${TEMPORARYFILES}/" || true
 
-mv genbank_from_NCBI.gbk.* "${TEMPORARYFILES}/"
+mv genbank_from_NCBI.gbk.* "${TEMPORARYFILES}/" || true
 
-# If we got seemingly good results and aren't debugging, delete the temporary files.
-if [ -s SNPs_all -a -s tree.parsimony.tre -a -s tree_AlleleCounts.parsimony.tre -a -s unresolved_clusters -a -s COUNT_SNPs -a $DEBUG -lt 1 ]
+# We want the previously official tree name to be canonical.
+mv "${SNPSALLPARSIMONYTREE}" "${TEMPORARYFILES}/" || true
+
+
+# If we are missing expected results, warn the user.
+if [ ! -s SNPs_all -o ! -s tree.parsimony.tre -o ! -s tree_AlleleCounts.parsimony.tre -o ! -s unresolved_clusters -o ! -s COUNT_SNPs ]
 then
-    
-	rm -r "${TEMPORARYFILES}"
+    echo "WARNING: The output directory is missing some expected files.  You may"
+    echo "consider re-running kSNP with -debug to get more useful details."
+fi
+
+   
+if [ "${DEBUG}" -ne 1 ]
+then
+    rm -r "${TEMPORARYFILES}"
+else
+    echo "Debug was: ${DEBUG}"
 fi
 
 # Put the debug output into the current working directory (the run directory)
-mv "${DEBUGOUTPUT}" ./kSNP.output
-echo
-echo "Review the run details in ${DIR}/kSNP.output"
+# mv "${DEBUGOUTPUT}" ./kSNP.output
+# echo
+# echo "Review the run details in ${DIR}/kSNP.output"
 
 exit 0
 
