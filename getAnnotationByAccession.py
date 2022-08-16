@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+
+
 # Import the Entrez database API from BioPython
 import Bio.Entrez as Entrez
 
@@ -18,6 +20,17 @@ import logging as logging
 # Import tools for parsing kSNP configuration data.
 # TODO - JN
 # import ksnpConfig
+
+
+####################################
+####################################
+###
+###
+### Functions
+###
+###
+####################################
+####################################
 
 
 # The override option to this function can be used to cause the parsing of a provided list
@@ -244,11 +257,24 @@ def getAnnotationsThroughCache(accessionList, cacheDir, maxCacheDays):
     # Return the cached annotations overwritten by any that were more recently
     # retrieved.
     return cachedAnnotations | retrievedAnnotations
-    
+
+
+
+####################################
+####################################
+###
+###
+### Main
+###
+###
+####################################
+####################################
+
 
 if __name__ == "__main__":
 
     Entrez.email="ksnp-dev@kissake.net"
+    Entrez.tool="kSNP4"
 
     options = parseCommandline()
 
@@ -256,6 +282,9 @@ if __name__ == "__main__":
         logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
     else:
         logging.basicConfig(format='%(levelname)s:%(message)s')
+
+    # If the cache directory does not exist, create it.
+    os.makedirs(options.cachedir, exists_ok=True)
     
     annotations = getAnnotationsThroughCache(options.accessionList, options.cachedir, options.maxcachedays)
 
