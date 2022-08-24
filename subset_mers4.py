@@ -15,31 +15,45 @@ import sys
 
 prefixLen = 4  
 outputBuffer = 100000
+columnSeparator="\t"
 
 
-def subset4mers(inputfile, prefixlen):
+def subset4mers(inputfile, prefixlen, suffix, column):
+    # Note that the column is zero-indexed; the first one is zero.
     # Holds the file handle for each file we have opened, one per bucket.
     buckets = {}
 
-    in = open(inputfile, "r")
+    input = open(inputfile, "r")
 
-    line = in.readline()
+    line = input.readline()
+
     while line:
-        bucketName = line[:prefixlen]
+        if line.count(columnSeparator) < column:
+            line = input.readline()
+            continue
+                
+        kmer = line.split(columnSeparator)[column]
+        bucketName = kmer[:prefixLen]
 
         # Open a file if we don't have one open for this prefix.  Otherwise
         # return the file we already opened for this prefix.
-        bucketFile = buckets.setdefault(bucketName, open(inputFile + "." + bucketName, "a"))
+        bucketFile = buckets.setdefault(bucketName, open(bucketName + suffix, "a"))
         bucketFile.write(line)
   
-        line = in.readline()
+        line = input.readline()
     return buckets
         
 if __name__ == "__main__":
 
-    inputFile = sys.argv[0]
+    inputFile = sys.argv[1]
+    suffix = sys.argv[2]
+    if len(sys.argv) > 3:
+        column = int(sys.argv[3])
+    else:
+        column = 0
+
     if prefixLen <= 4:
-        subset4mers(inputFile, prefixLen)
+        subset4mers(inputFile, prefixLen, suffix, column)
 
     else:
         print("Prefix lengths greater than 4 not supported (yet)")
