@@ -235,8 +235,11 @@ mummer_build = mummer-4.0.0rc1
 mummer: mummer-src.tgz
 	tar -xzf $<
 	cd $(mummer_build) && autoreconf -fi && ./configure && make mummer
-	cp $(mummer_build)/mummer .
-	rm -r $(mummer_build)
+	cp $(mummer_build)/.libs/mummer ./mummer-bin
+	cp $(mummer_build)/.libs/libumdmummer.so.0.0.0 ./libumdmummer.so.0
+	echo -e '#!/bin/bash\nLD_LIBRARY_PATH=`dirname "${0}"`:${LD_LIBRARY_PATH} `dirname "${0}"/mummer-bin "${@}"' > "$@"
+	chmod a+x "$@"
+	# This is a release candidate, guessing that's why the build doesn't make the standalone binary?
 
 mummer-src.tgz:
 	curl -L "https://github.com/mummer4/mummer/archive/refs/tags/v4.0.0rc1.tar.gz" > $@
