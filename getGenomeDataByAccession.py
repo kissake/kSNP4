@@ -1,9 +1,33 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
+'''
+usage: getGenomeDataByAccession.py [-h] [--debug] [--cachedir CACHEDIR] [--maxcachedays MAXCACHEDAYS] [--annotation] [--genome] accessionID [accessionID ...]
+
+Return genome data for given accession IDs
+
+positional arguments:
+  accessionID           Accession IDs to return.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --debug               Output diagnostic data to the screen using STDERR
+  --cachedir CACHEDIR   Override the directory to use for caching data
+  --maxcachedays MAXCACHEDAYS
+                        Override the maximum age for cached data
+  --annotation          Output annotation data for the accession ID if available.
+  --genome              Output genome data for the accession ID if available.
+
+To get the genome (FASTA format) data for accession ID NZ_CP075697.1 to your screen:
+
+getGenomeDataByAccession.py --genome NZ_CP075697.1
+
+'''
 
 
 # Import the Entrez database API from BioPython
 import Bio.Entrez as Entrez
+
+import ksnpCache as kcache
 
 # Import standard Python libraries for argument parsing, interacting with the
 # filesystem, and environment and time / date processing.
@@ -21,25 +45,6 @@ import logging as logging
 # TODO - JN
 # import ksnpConfig
 
-####################################
-####################################
-###
-###
-### Module / global variables
-###
-###
-####################################
-####################################
-
-# Static
-
-annotationData = 'gb'
-genomeData = 'fasta'
-cacheLocation = {
-    annotationData: 'GbkCache',
-    genomeData: 'GenomeCache'
-}
-
 
 ####################################
 ####################################
@@ -55,29 +60,33 @@ cacheLocation = {
 # The override option to this function can be used to cause the parsing of a provided list
 # instead of the programs passed options, for testing.
 def parseCommandline(override=None):
-    parser = argparse.ArgumentParser(description='Return genome data for given accession IDs')
+
+    example='''To get the genome (FASTA format) data for accession ID NZ_CP075697.1 to your screen:
+
+%(prog)s --genome NZ_CP075697.1
+'''
+    
+    parser = argparse.ArgumentParser(description='Return genome data for given accession IDs',
+                                     epilog=example, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('accessionList', metavar='accessionID', nargs='+',
                         help='Accession IDs to return.')
     parser.add_argument('--debug', action='store_true', help='Output diagnostic data to the screen using STDERR')
     # The default will eventually be configurable with a config file.
-    parser.add_argument('--cachedir', default=os.path.join(os.environ.get('HOME',''),'kSNP'), help='Override the directory to use for caching data')
+    parser.add_argument('--cachedir', default=os.path.join(os.environ.get('HOME',''),'kSNP'),
+                        help='Override the directory to use for caching data')
     # The default will eventually be configurable with a config file.
     parser.add_argument('--maxcachedays', type=int, default=90, help='Override the maximum age for cached data')
-    parser.add_argument('--annotation', dest='responses', action='append_const', const=annotationData, help='Output annotation data for the accession ID if available.')
-    parser.add_argument('--genome', dest='responses', action='append_const', const=genomeData, help='Output genome data for the accession ID if available.')
+    parser.add_argument('--maxcachebytes', type=int, default=10000000000, help='Override the maximum size for the cache in bytes')
+    parser.add_argument('--annotation', dest='responses', action='append_const', const=kcache.annotationData,
+                        help='Output annotation data for the accession ID if available.')
+    parser.add_argument('--genome', dest='responses', action='append_const', const=kcache.genomeData,
+                        help='Output genome data for the accession ID if available.')
 
     if override is None:
         return parser.parse_args()
     else:
         return parser.parse_args(override)
-    
-    
-def cacheFileName(accession, cacheDir, dataType=annotationData):
-    # Combine the base cache area plus the specific data type being cached with the accession id.
 
-    # If the cache directory does not exist, create it.
-    os.makedirs(os.path.join(cacheDir, cacheLocation[dataType]), exist_ok=True)
-    return os.path.join(cacheDir, cacheLocation[dataType], str(accession))
 
 def getAccessionStatus(accessionList):
     # Relies on Entrez.email being set; currently being done in __main__, maybe
@@ -136,7 +145,7 @@ def getAccessionStatus(accessionList):
 
     return records
 
-def retrieveAndCacheGenomeData(accessionList, cacheDir, dataType=annotationData):
+def retrieveAndCacheGenomeData(accessionList, cacheDir, maxCacheBytes, dataType=kcache.annotationData):
     # Note that this should be called by getGenomeDataThroughCache() because
     # that will ensure that the accession number used is the versioned one,
     # rather than the unversioned one.
@@ -168,30 +177,31 @@ def retrieveAndCacheGenomeData(accessionList, cacheDir, dataType=annotationData)
         cacheFile = None
 
         try:
-            cacheFile = open(cacheFileName( accession, cacheDir, dataType),"w")
+            cacheFile = open(kcache.cacheFileName( accession, cacheDir, dataType),"w")
             cacheFile.write(resultData[accession])
             cacheFile.close()
-            logging.info("Successfully cached %s into %s", accession, cacheFileName( accession, cacheDir, dataType))
+            logging.info("Successfully cached %s into %s", accession, kcache.cacheFileName( accession, cacheDir, dataType))
+            kcache.shrinkCache(cacheDir, maxCacheBytes)
 
         except OSError:
             if cacheFile is not None:
                 cacheFile.close()
             logging.warning("WARNING: could not write cache file to cache directory for %s.  File permissions or a directory not existing could cause this.", accession)
-            if os.access(cacheFileName(accession, cacheDir, dataType), os.W_OK):  # If we have access to the cache file, then
+            if os.access(kcache.cacheFileName(accession, cacheDir, dataType), os.W_OK):  # If we have access to the cache file, then
                 # Remove the cache file because it is in an unknown state.
-                os.remove(cacheFileName(accession, cacheDir))
+                os.remove(kcache.cacheFileName(accession, cacheDir))
 
     for accession in accessionList:
         if not accession in resultData:  # If the info for this accession number wasn't retrieved, then
             logging.info("WARNING: could not retrieve %s from NCBI; it is not available for annotation", accession)
-            if os.access(cacheFileName(accession, cacheDir, dataType), os.W_OK):  # If we have access to the cache file, then
+            if os.access(kcache.cacheFileName(accession, cacheDir, dataType), os.W_OK):  # If we have access to the cache file, then
                 # Remove the cache file because it is out of date.
-                os.remove(cacheFileName(accession, cacheDir, dataType))
+                os.remove(kcache.cacheFileName(accession, cacheDir, dataType))
 
     return resultData
 
 
-def findCachedGenomeData(accessionList, cacheDir, dataType=annotationData):
+def findCachedGenomeData(accessionList, cacheDir, dataType=kcache.annotationData):
     # The actual annotation data retrieved from the cache
     resultData = {}
 
@@ -202,7 +212,7 @@ def findCachedGenomeData(accessionList, cacheDir, dataType=annotationData):
     
     for accession in accessionList:
         try:
-            cacheName = cacheFileName(accession, cacheDir, dataType=dataType)
+            cacheName = kcache.cacheFileName(accession, cacheDir, dataType=dataType)
 
             # Find the creation time of the cached file.  Later it may
             # make sense to see if there is relevant info in the cache
@@ -263,7 +273,7 @@ def cacheCurrent(annotation, databaseStatus, maxCacheDays):
              datetime.date.today() - cachedDate < maxCachedLifetime )
 
             
-def getGenomeDataThroughCache(accessionList, cacheDir, maxCacheDays, dataType=annotationData):
+def getGenomeDataThroughCache(accessionList, cacheDir, maxCacheDays, maxCacheBytes, dataType=kcache.annotationData):
     # Passed a list of accession numbers, return annotation information for
     # each, making sure that 1) if the information must be retrieved from a
     # remote source, it is cached, and 2) if it has already been cached and
@@ -290,7 +300,7 @@ def getGenomeDataThroughCache(accessionList, cacheDir, maxCacheDays, dataType=an
         # Otherwise we didn't have this cached, or it was out of date somehow.
         accessionListToRetrieve.append(accession)
 
-    retrievedData = retrieveAndCacheGenomeData(accessionListToRetrieve, cacheDir, dataType)
+    retrievedData = retrieveAndCacheGenomeData(accessionListToRetrieve, cacheDir, maxCacheBytes, dataType)
 
     for accession in accessionListToRetrieve:
         if not accession in retrievedData:
@@ -301,7 +311,9 @@ def getGenomeDataThroughCache(accessionList, cacheDir, maxCacheDays, dataType=an
 
     # Return the cached annotations overwritten by any that were more recently
     # retrieved.
-    return { **cachedData, **retrievedData }
+    for (key, value) in retrievedData.items():
+        cachedData[key]=value
+    return cachedData
 
 
 
@@ -337,7 +349,7 @@ if __name__ == "__main__":
         responses = options.responses
 
     for dataType in responses:
-        outputData[dataType] = getGenomeDataThroughCache(options.accessionList, options.cachedir, options.maxcachedays, dataType=dataType)
+        outputData[dataType] = getGenomeDataThroughCache(options.accessionList, options.cachedir, options.maxcachedays, options.maxcachebytes, dataType=dataType)
         
     for outputSection in outputData.keys():
         for (accession, output) in outputData[outputSection].items():
