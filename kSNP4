@@ -42,11 +42,10 @@ export MERGE_FASTA_READ="${KSNPPATH}/merge_fasta_reads3"
 # export JELLYFISH="${KSNPPATH}/jellyfish"
 export JELLYFISH="jellyfish"
 export GETQUANTILE="${KSNPPATH}/get_quantile3"
-export SUBSETMERS="${KSNPPATH}/subset_mers4"
+export SUBSETMERS="${KSNPPATH}/subset_mers4.py"
 export DELETEALLELECONFLICTS="${KSNPPATH}/delete_allele_conflicts3"
 export PARALLELCOMMANDS="${KSNPPATH}/parallel_commands3"
 export SUBSETMERLIST="${KSNPPATH}/subset_mer_list4.py"
-export SUBSETSNPSALL="${KSNPPATH}/subset_SNPs_all4"
 export SNPSTOFASTAQUERY="${KSNPPATH}/SNPs2fastaQuery3"
 export PICKSNPSFROMKMERS="${KSNPPATH}/pick_snps_from_kmer_genome_counts3"
 export FINDALLELE="${KSNPPATH}/find_allele3"
@@ -74,6 +73,8 @@ export PARSEPROTEINANNOTATIONCOUNTS="${KSNPPATH}/parse_protein_annotation_counts
 export PARANN="${KSNPPATH}/ParAnn"
 export BUILDTREE="${KSNPPATH}/buildtree"
 export SUMMARIZEANNOTATION="${KSNPPATH}/summarize_annotation.py"
+export GETFILTEREDKMERS="${KSNPPATH}/get_filtered_kmers.py"
+export FREQCHECK="${KSNPPATH}/inline_frequency_check.py"
 
 
 
@@ -343,7 +344,7 @@ Optional arguments:
  -NJ  			 Calculate a neighbor joining tree
  -vcf			 Create a vcf file using the first genome specified in 
  			 the -positions file as the reference genome
- -cache <cache dir>      Cache kSNP data to improve performance across runs.
+ -cachedir <cache dir>      Cache kSNP data to improve performance across runs.
  -nocache      		 Disable all caching (this is the default)
 
 
@@ -523,135 +524,50 @@ cat "${ANNOTATELIST}"
 echo ""
 
 
-# Make lookup table of genome names and fsplit# files, and create fsplit# files by merging entries of multi-contig/multi-read input genomes. 
-# Note that this is sensitive to extra lines, including blank lines?
-export NUM_SEQS=`wc -l "${FASTALIST}" | awk '{print $1}' `
 
-echo "Number of input sequences: ${NUM_SEQS}"
-
-# Ensure fileName2genomeName file exists and is empty.
-[ -e "${FILE2GENOME}" ] && rm "${FILE2GENOME}"
-touch "${FILE2GENOME}"
-
-# VAR
+export FREQUENCYPREFIX='freq'
+export KMERSPREFIX='kmers'
 
 
-# Output fasta_list input file, with lines numbered from zero in the first column, and write
-# a mapping from fsplit<line number> to genome name (tab separated) into fileName2genomeName
-# file
-COUNT=0
-cat "${FASTALIST}" | while read FILE GENOME   # Read the contents of each line into two variables.
-do
-    # Output to the screen the association between the count, the genome name and the file.
-    echo -e "${COUNT}\t${GENOME}\t${FILE}"
-    
-    FSPLIT="${SPLITNAME}${COUNT}"
-    # Combine multiple FASTA file records in a file into a single record by joining them with 'N'
-    # NOTE: This can take measurable amount of time for FASTA files with lots of records.  Cache this data? - JN FXIME TODO XXX
-    "${MERGE_FASTA_READ}" "${FILE}" > "${FSPLIT}"
-    
-    # Mapping of fsplit filename to genome
-    echo -e "${FSPLIT}\t${GENOME}" >> "${FILE2GENOME}"
-    
-    # Increment count variable
-    COUNT=`expr "${COUNT}" + 1`
-done
-
-
-#############
-# FINISHED Setup of environment, update user re: details.
-#############
 
 #############
 #############
 #
-# START Generating SNPs
+# BEGIN input file product caching work.
+#
+#############
+#############
+
+# Input:
+#  $FASTALIST
+#  $MERGEFASTAREAD
+#  $K
+#  $JELLYFISH
+#  $HASHSIZE
+#  $NUM_CPUS
+#  $CACHEDIR
+#  $CACHESIZE
+#
+# Output:
+#  $FILE2GENOME
+#  one file for each entry in $FILE2GENOME named kmers.<filename> (e.g. kmers.fsplit0)
+#  
+
+
+"${GETFILTEREDKMERS}" "${FASTALIST}" "${MERGE_FASTA_READ}" "${K}" "${JELLYFISH}" "${HASHSIZE}" "${NUM_CPUS}" --cachedir "${CACHEDIR}" --maxcachebytes "${CACHESIZE}" "${FILE2GENOME}" "${FREQCHECK}" "${SPLITNAME}" kmers Jelly filtered --debug  || exit 1
+
+
+
+#############
+#############
+#
+# END input file product caching work.
 #
 #############
 #############
 
 
-#############
-# Run jellyfish on the merged input files to produce kmers list files.
-#############
 
-
-# Input: List of merged input files (in the $FILE2GENOME file here) and the files themselves
-# Output: A kmers_all version of each input file.
-
-
-date # Output the date for timing info.
-echo "Running jellyfish to find kmers"
-
-# Extract the names of the files from the list we already created, and iterate through the list.
-cat "${FILE2GENOME}" | while read FILE REST
-do
-    KMERSALL="${KMERSALLPREFIX}.${FILE}"
-    UNSORTEDKMERS="${UNSORTEDKMERSPREFIX}.${FILE}"
-    if [ ! -s "${KMERSALL}" ]
-    then
-	JELLYFILE="Jelly.${FILE}"
-	echo "${FILE}"  # Perhaps we should print the genome instead?  It is in $REST at this time
-
-	# Extract all of the kmers from the input fasta files ( along with counts? or is that just a placeholder? )
-	"${JELLYFISH}" count -C -o "${JELLYFILE}" -m "${K}" -s "${HASHSIZE}" -t "${NUM_CPUS}" "${FILE}"
-
-	# Output is not sorted.
-	# Old and new jellyfish files have different names.  Old has _0 tagged onto it.
-	for THISFILE in "${JELLYFILE}" "${JELLYFILE}"_*
-	do
-	    
-	    [ -e "${THISFILE}" ] && "${JELLYFISH}" dump -c "${THISFILE}" >> "${UNSORTEDKMERS}"
-
-	done
-	
-	# Not clear that output needs to be sorted yet.
-	sort "${UNSORTEDKMERS}" > "${KMERSALL}"
-	
-	# Note that we aren't removing the $JELLYFILE?  It is smaller than the origin file, to be fair.
-	rm "${UNSORTEDKMERS}"
-    fi
-done
-
-echo "Finished running jellyfish."
-
-
-#############
-# START Filtering kmers from jellyfish based on frequency.
-#############
-
-
-
-export FREQUENCYPREFIX="freq"
-export KMERSPREFIX="kmers"
-
-echo "Filtering out low-frequency kmers."
-
-# Extract the names of the files from the list of input files we already created, and iterate through the list.
-cat "${FILE2GENOME}" | while read FILE REST
-do
-    FREQUENCY="${FREQUENCYPREFIX}.${FILE}"
-    KMERSALL="${KMERSALLPREFIX}.${FILE}"
-    KMERS="${KMERSPREFIX}.${FILE}"
-
-    awk '{print $2}' "${KMERSALL}" > "${FREQUENCY}"
-
-    MIN_KMER_COVERAGE=`"${GETQUANTILE}" "${FREQUENCY}"`
-    echo "minimum kmer coverage for ${FILE} is ${MIN_KMER_COVERAGE}"
-
-    # Filter out kmers with frequency lower than the $MIN_KMER_COVERAGE
-    awk -v "m=${MIN_KMER_COVERAGE}" '$2>=m {print}' "${KMERSALL}" > "${KMERS}"
-
-    # Remove temporary frequency file
-    rm "${FREQUENCY}"
-done
-
-date
-echo "Filtered out low-frequency kmers."
-
-#############
-# FINISHED Filtering kmers from jellyfish based on frequency.
-#############
 
 
 
@@ -697,7 +613,7 @@ do
     mkdir "${GENOMEDIRECTORY}"
     cd "${GENOMEDIRECTORY}"
 
-    "${SUBSETMERS}" "${KMERS}"
+    "${SUBSETMERS}" "${KMERS}" .mers
 
     [ -e "${REMOVECONFLICTSCOMMANDS}" ] && rm "${REMOVECONFLICTSCOMMANDS}"
     touch "${REMOVECONFLICTSCOMMANDS}"
@@ -776,7 +692,7 @@ then
 
     # Requires $SNPS_ALL_INPUT file to be sorted.  Create <prefix>.mers.SNPs_all files for each prefix that could exist, empty if not found in $SNPS_ALL_INPUT
     # For prefixes found in $SNPS_ALL_INPUT, fill the corresponding file with lines matching the prefix from $SNPS_ALL_INPUT.
-    "${SUBSETSNPSALL}" "${SNPS_ALL_INPUT}"
+    "${SUBSETMERS}" "${SNPS_ALL_INPUT}" '.mers.SNPs_all' 1
     cat "${MERLIST}" | while read SUBSET # For each k-mer prefix bucket....
     do
 	SUBSETSNPS="${SUBSET}.${SNPSALLSUFFIX}"
