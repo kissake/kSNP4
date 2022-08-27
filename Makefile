@@ -237,7 +237,7 @@ mummer: mummer-src.tgz
 	cd $(mummer_build) && autoreconf -fi && ./configure && make mummer
 	cp $(mummer_build)/.libs/mummer ./mummer-bin
 	cp $(mummer_build)/.libs/libumdmummer.so.0.0.0 ./libumdmummer.so.0
-	echo -e '#!/bin/bash\nLD_LIBRARY_PATH=`dirname "${0}"`:${LD_LIBRARY_PATH} `dirname "${0}"/mummer-bin "${@}"' > "$@"
+	echo -e '#!/bin/bash\nLD_LIBRARY_PATH=`dirname "$${0}"`:$${LD_LIBRARY_PATH} `dirname "$${0}"`/mummer-bin "$${@}"' > "$@"
 	chmod a+x "$@"
 	# This is a release candidate, guessing that's why the build doesn't make the standalone binary?
 
@@ -255,11 +255,6 @@ parsimonator: parsimonator-src.zip
 parsimonator-src.zip:
 	curl -L "https://github.com/stamatak/Parsimonator-1.0.2/archive/refs/heads/master.zip" >$@
 
-
-# Automated testing for the build
-
-Examples.zip: Examples/Example1 Examples/Example2
-	zip --symlinks -r "$@" "$<"
 
 
 test: example1 example2
@@ -282,3 +277,10 @@ distclean: clean
 	rm -r $(mummer_build) || echo "Clean"
 	rm -r $(parsimonator_build) || echo "Clean"
 	rm -r $(consense_build) || echo "Clean"
+
+
+Examples: Examples.zip
+	unzip "$<"
+
+Examples.zip:
+	curl -L "https://downloads.sourceforge.net/project/ksnp/Examples.zip" >$@
