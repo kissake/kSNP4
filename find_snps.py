@@ -63,7 +63,8 @@ and also (with the overall list of SNPs):
     parser.add_argument('filteredGenomes', metavar='filteredGenome', nargs='+',
                         help='Filtered genomes (possibly partitioned) from which to extract SNPs.')
 
-    parser.add_argument('--suffix', action='store', help='The suffix to use for output files', default='SNPs.fasta')
+    parser.add_argument('--fasta-suffix', action='store', help='The suffix to use for fasta files to output to mummer for position data', default='SNPs.fasta')
+    parser.add_argument('--snp-suffix', action='store', help='The suffix to use for SNP files', default='SNPs')
 
     # Add default cache-related options.
     kcache.addCacheOptions(parser)
@@ -145,8 +146,11 @@ def deconflict(genomeSets):
 # def writeSNP(locus, nucleotide, genome, SNPsFile, k):
 def writeSNP(locus, nucleotide, genome, centerPos):
     newline = '\n'
+    tab = '\t'
     
-    genome.write('>' + locus + '_' + nucleotide + newline + locus[:centerPos] + nucleotide + locus[centerPos+1:] + newline)
+    genome['fasta'].write('>' + locus + '_' + nucleotide + newline + locus[:centerPos] + nucleotide + locus[centerPos+1:] + newline)
+    genome['snp'].write(tab.join([locus, nucleotide, locus[:centerPos] + nucleotide + locus[centerPos+1:], 'FILENAME']) + newline)
+    
     # If we also want to create a central list of SNPs as well NOW, we can do it here.
     # SNPsFile.write(locus[:centerpos] + nucleotide + locus[centerpos+1:] + newline)
 
@@ -212,7 +216,7 @@ def getK(genomeList):
     
 
 # def findSNPs(genomeList, SNPsFile, genomeSNPsSuffix):
-def findSNPs(genomeList, outputSuffix):
+def findSNPs(genomeList, fastaSuffix, snpSuffix):
     k = getK(genomeList)
 
 
@@ -222,17 +226,22 @@ def findSNPs(genomeList, outputSuffix):
 
     outputFiles = {}
     for genome in genomeList:
-        outputFiles[genome] = open(genome + outputSuffix, 'w')
+        outputFiles[genome] = {
+            'fasta': open(genome + fastaSuffix, 'w'),
+            'snp':   open(genome + snpSuffix, 'w'),
+            }
         # Avoid the cost of flushing at the end of every line.
-        outputFiles[genome].reconfigure(line_buffering=False)
+        outputFiles[genome]['fasta'].reconfigure(line_buffering=False)
+        outputFiles[genome]['snp'].reconfigure(line_buffering=False)
     
     # dumpBucket(thisBucket, genomeBits, genomeList, SNPsFile, k)
     totalSNPs = dumpBucket(thisBucket, genomeBits, outputFiles, k)
     logging.info('Found %s SNPs in this partition', totalSNPs)
 
     # Clean up, flush data to disk.
-    for outputFile in outputFiles.values():
-        outputFile.close()
+    for outputFiles in outputFiles.values():
+        for fileType in outputFiles.values():
+            fileType.close()
 
             
             
@@ -266,4 +275,4 @@ if __name__ == "__main__":
     genomeFiles = options.filteredGenomes # Looks like fsplitX.SNPs.partY.mers AND fsplitX.SNPs.partY.mers.fasta (last for mummer)
 
     # This output will be piped into mummer to get position information to link us with annotation data.
-    findSNPs(genomeFiles,options.suffix)
+    findSNPs(genomeFiles, options.fasta_suffix, options.snp_suffix)
