@@ -231,7 +231,15 @@ def processJellyfishDumps(inputFiles, jellyfishFilename, freqcheckFilename, ):
         logging.debug('Processing frequency data for %s', file['tempFile'])
         # Grab the frequency cutoff from the first subprocess, ignoring stderr.
         processes = file['freqProcesses']
-        file['minFreq'] = int(processes.pop().communicate()[0])
+
+        # This is the interface between the inline_freq_check.py program and this one.
+        # Currently space separated integers.  The first is the minFreq, and the second
+        # is the total number of kmers.
+        statistics = processes.pop().communicate()[0].split(b" ")
+        
+        file['minFreq'] = str(statistics[0])
+        # Note that length may change if minFreq != 1.
+        file['length'] = str(statistics[1])
 
         # Then clean up any remaining processes for this file (shouldn't be any)
         for process in processes:

@@ -30,7 +30,7 @@ def getMinKmerCoverage(inFile, outFile):
     take an easily measureable amount of time.
     '''
     
-    countsList = []
+    nonOnesList = []
     space = " "
     # Some simple math to speed mean and median calculation in typical cases.
     # If you subtract one from each element in a series, the average of that
@@ -50,35 +50,41 @@ def getMinKmerCoverage(inFile, outFile):
         outFile.write(line)
         merCount = int(line.split(space)[1])
         # No sense appending a '1' to this list... TODO FIXME XXX - JN
-        countsList.append(merCount) #Split line on spaces, get second element.
         if merCount == 1:
             onesCount = onesCount+1
             # no need to add anything to runningSumMinusOne; 1-1 = 0
         else:
+            nonOnesList.append(merCount) #Split line on spaces, get second element.
             runningSumMinusOne = runningSumMinusOne + merCount - 1
 
 
+    totalRecords = onesCount + len(nonOnesList)
     # Fastpath for the common case: Typically, far more than 50% of the values are 1,
     # so no need to parse the entire array to come up with this result.
-    if onesCount > (len(countsList) / 2):
+    if onesCount > (totalRecords / 2):
         # If more than half of the values are a particular value, the median is that
         # value by definition.
         median = 1
         # Definition of the mean: The sum divided by the count.
         # Note that python3 integers _cannot overflow_ (you will get OOM instead)
-        mean = ( runningSumMinusOne / len(countsList) ) + 1
+        mean = ( runningSumMinusOne / totalRecords ) + 1
     else:
         # THIS PATH IS SLOW.  At least two O(N) operations, possibly O(NlogN)
-        # Math on countslist
+        # Add the ones we avoided adding before.
+        
+        # Add all of the 1 values we avoided adding before.
+        countsList = nonOnesList.extend([1]*ounesCount)
+
+        # Math on countslist        
         mean = statistics.mean(countsList)
 
-        # NOTE: This operation is _SLOW_ (at least O(N).  Would be better to find a way to compute
+        # NOTE: This operation is _SLOW_ (at least O(N).  Might be better to find a way to compute
         # the running median?  Keep a sorted array?
         median = statistics.median(countsList)
 
 
     # Halfway between median and mean)
-    return int(statistics.mean([mean, median]))
+    return ( int(statistics.mean([mean, median])), totalRecords )
 
             
 if __name__ == "__main__":
@@ -88,7 +94,7 @@ if __name__ == "__main__":
 
     outputFilename = sys.argv[1]
     outputFile = open(outputFilename, 'w')
-    outputStat = getMinKmerCoverage(sys.stdin, outputFile)
+    ( minKmer, totalKmers ) = getMinKmerCoverage(sys.stdin, outputFile)
     outputFile.close()
 
-    sys.stdout.write(str(outputStat) + newline)
+    sys.stdout.write(" ".join([str(minKmer), str(totalKmers)]))
