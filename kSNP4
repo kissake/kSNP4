@@ -1,4 +1,5 @@
 #!/bin/bash -vx
+#!/bin/bash
 
 ########################################################################
 
@@ -567,224 +568,127 @@ export KMERSPREFIX='kmers'
 #############
 
 
+echo "Finished retrieving filtered kmers"
+date
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 
 #############
+#############
 #
-# START Remove conflicting kmers.  A k-mer is conflicting there are multiple
-# 'alleles' (kmers matching in all but the center) within a given genome.
-#
-# This is an issue because you cannot discern a mutation between two genomes
-# when there are multiple matching kmers _within_ a genome using this tool
-# which is restricted to looking at the kmers without the full genome context.
+# BEGIN SNPs search for input into mummer
 #
 #############
+#############
 
-### Input: kmers.fsplit<N> (all)
-### Output: Dir.fsplit<N>/X*.mers (many for each fsplit<N> source) 
-### Output: kmers_fsplit<N>.conflictsDeleted (each)
-### Transform: kmers in the kmers.fsplit<N> file sorted into buckets of 
-###   identical prefix
-### Transform: A conflict is when a k-mer matches another in every character
-###   except the center.  These are removed from the buckets of identical
-###   prefix above, and the resulting kmers are simply listed in the output
-###   file (.conflictsDeleted) in sorted order.
+# If we start to hit memory limits, we will want to break this down further.
+NUMPARTS="${NUM_CPUS}"
 
-# Challenges:
-#  - Creates a lot of files that then need to be managed.
-#  - Parallelizes without regard to size of dataset (confirm?)
-#  - LOTS of sorting.
+PARTITIONS='partitions.txt'
+
+PARTITIONSUFFIX='.part'
+
+SNPFASTAS='.SNPs.fasta'
+date -Ins
+
+guessPartition.py --debug --input kmers.fsplit0 "${NUMPARTS}" > "${PARTITIONS}"
+
+date -Ins
+
+cut -f 1 "${FILE2GENOME}" |
+    sed -e "s/^/${KMERSPREFIX}./" |
+    xargs -n 1 -P "${NUM_CPUS}" partitionKmers.py --debug --partition "${PARTITIONS}" --suffix "${PARTITIONSUFFIX}"
+
+date -Ins
 
 
-export DIRPREFIX="Dir"
-export REMOVECONFLICTSCOMMANDS="cmds_remove_conflicting"
+echo "Finished partitioning kmer files."
 
-# Remove kmers from a genome if there are conflicting alleles in that genome 
-echo "Removing conflicting kmers from each genome with conflicting alleles"
+COUNT=0
+while [ "${COUNT}" -lt "${NUMPARTS}" ]
+do
+    echo "${PARTITIONSUFFIX}${COUNT}"
+    let COUNT="${COUNT}"+1
+    
+done | xargs -I "${PARTITIONSUFFIX}0" -n 1 -P "${NUM_CPUS}" find_snps.py --fasta-suffix "${SNPFASTAS}" --snp-suffix "${SNPSPREFIX}" "${KMERSPREFIX}."*"${PARTITIONSUFFIX}0"
+
+date -Ins
+
+echo "Found SNPs"
+date
 
 cat "${FILE2GENOME}" | while read FILE REST
 do
-    GENOMEDIRECTORY="${DIRPREFIX}.${FILE}"
-    KMERS="../${KMERSPREFIX}.${FILE}"
+    KMERS="${KMERSPREFIX}.${FILE}"
 
-    echo "${FILE}"
-    mkdir "${GENOMEDIRECTORY}"
-    cd "${GENOMEDIRECTORY}"
-
-    "${SUBSETMERS}" "${KMERS}" .mers
-
-    [ -e "${REMOVECONFLICTSCOMMANDS}" ] && rm "${REMOVECONFLICTSCOMMANDS}"
-    touch "${REMOVECONFLICTSCOMMANDS}"
-
-    # I think these are the output files from subset_mers3? TODO FIXME XXX
-    # Note that this can use xargs v. easily.
-    for SUBSET in *.mers     
-    do
-	# Remove conflicts, and place them in a new file with the suffix "conflictsDeleted"
-	# The output filename should be explicit to make subsequent references clearer.
-	echo "${DELETEALLELECONFLICTS} ${SUBSET}" >> "${REMOVECONFLICTSCOMMANDS}"
-    done
-    
-    "${PARALLELCOMMANDS}" "${NUM_CPUS}" "${REMOVECONFLICTSCOMMANDS}"
-
-    cd ..   # Return to the working directory.
+    # Note that these can be done in parallel, but I'd rather not manage the processes, and it should be fast.
+    cat "${KMERS}"*"${SNPFASTAS}" > "${KMERS}${SNPFASTAS}"
 
 done
 
-echo "Finished removing conflicting kmers"
-date
-
-#############
-#
-# FINISHED Remove conflicting kmers.
-#
-#############
+date -Ins
+wait $(jobs -p)
 
 
-
-
-echo "Merge sorted k-mer files and remove duplicates"
-export MERLIST="mer_list"
-export SORT_COMMANDS="cmds_sort"
-
-"${SUBSETMERLIST}" > "${MERLIST}"
-
-cat "${MERLIST}" | while read SUBSET
-do
-    echo "sort -m -u ${DIRPREFIX}.*/${SUBSET}.${CONFLICTSSUFFIX} > ${SUBSET}" >> "${SORT_COMMANDS}"
-done
-
-"${PARALLELCOMMANDS}" "${NUM_CPUS}" "${SORT_COMMANDS}"
-
-echo "Finished merging kmers across genomes."
-date
-
-
-#############
-#
-# START working with SNPs files
-#
-#############
-
-export SNPSALLSUFFIX="SNPs_all"
-export SNPLOCIPREFIX="SNP_loci"
-export SNPLOCISUFFIX="fasta"
-export PICKSNPCMDS="cmds_pick_snps"
-
-
-#############
-#
-# START Generating loci per-bucket.
-#
-#############
-
-
-
-if [ -e "${SNPS_ALL_INPUT}" ]   # If the SNPs_all argument points to a file that exists... (cached answers)
-then
-    # There is some ambiguity in this case. Since we are using cached data, the SNPs in the SNPs_all file
-    # may not correspond to the genomes in the $FASTALISTINPUT input file.  Is that okay?  Should we 1) confirm,
-    # or 2) do something different if we have different input genomes?
-    echo "Using existing SNPs from ${SNPS_ALL_INPUT} file"
-    date
-
-    # Requires $SNPS_ALL_INPUT file to be sorted.  Create <prefix>.mers.SNPs_all files for each prefix that could exist, empty if not found in $SNPS_ALL_INPUT
-    # For prefixes found in $SNPS_ALL_INPUT, fill the corresponding file with lines matching the prefix from $SNPS_ALL_INPUT.
-    "${SUBSETMERS}" "${SNPS_ALL_INPUT}" '.mers.SNPs_all' 1
-    cat "${MERLIST}" | while read SUBSET # For each k-mer prefix bucket....
-    do
-	SUBSETSNPS="${SUBSET}.${SNPSALLSUFFIX}"
-	SUBSETLOCI="${SNPLOCIPREFIX}.${SUBSET}.${SNPLOCISUFFIX}"
-
-	if [ -s "${SUBSETSNPS}" ] # If the subset SNPs file exists and is non-zero size...
-	then
-	    # Create a fasta-like file labeled with locus (k-mer without the nucleotide in the middle) followed by the allele identifier (nucleotide that would go in the middle)
-	    # The contents of that FASTA entry is the sequence (first half, period, middle nucleotide, period second half?  Perhaps the period is a concatenation operator?)
-	    # These entries are sorted first by locus, then by allele identifier, and are implicitly deduped by being written / overwritten into a dict and then pulled out.
-	    "${SNPSTOFASTAQUERY}" "${SUBSETSNPS}" > "${SUBSETLOCI}"
-	fi
-    done
-    
-else # SNPs_all argument did NOT point to a file that exists....
-	# do all the SNP finding
-	echo "Discovering new SNPs"
-	date
-	
-	echo "Finding kmers with multiple allele variants"
-
-
-	cat "${MERLIST}" | while read SUBSET # For each k-mer prefix bucket....
-	do
-	    SUBSETLOCI="${SNPLOCIPREFIX}.${SUBSET}.${SNPLOCISUFFIX}"
-
-	    # Note that $PICKSNPSFROMKMERS assumes a sorted input which is a bucket of filtered kmers from all genomes with a common prefix.  It was sorted above.
-	    # This will filter out kmers that don't have a SNP, and for those that do, prints
-	    # all of the polymorphisms in a fasta-like file that is labeled with the locus (k-mer with the nucleotide in the center replaced with a period), followed by
-	    # an underscore, then the nucleotide that was in the center (allele identifier), with the contents of the entry being the sequence itself (no period separation)
-	    # The output is sorted on locus and NOT sorted on allele identifier.  This output is put into a corresponding bucket named to indicate that it contains loci.
-	    echo "${PICKSNPSFROMKMERS} ${SUBSET} > ${SUBSETLOCI}" >> "${PICKSNPCMDS}"
-	done
-	
-	"${PARALLELCOMMANDS}" "${NUM_CPUS}" "${PICKSNPCMDS}"
-
-	echo "Finished finding kmers with multiple allele variants"
-fi
-
-
- # Find which genome has which allele variant, by comparing the SNP_loci and Dir.$f/$subset.conflictsDeleted  foreach genome
+echo "Re-combined SNP fasta files for input into mummer"
 date
 
 
 
-echo "Finding allele in each genome"
-[ -e "${FINDALLELECMDS}" ] && rm "${FINDALLELECMDS}"
-touch "${FINDALLELECMDS}"
-
-cat "${FILE2GENOME}" | while read FILE REST  # For each genome input file...
+cat "${FILE2GENOME}" | while read FILE REST
 do
-    GENOMEDIRECTORY="${DIRPREFIX}.${FILE}"
+    KMERS="${KMERSPREFIX}.${FILE}"
 
-    cat "${MERLIST}" | while read SUBSET # For each k-mer prefix bucket....
-    do
-	# All "loci" (k-mer missing center nucleotide) that share a prefix / in a prefix-based bucket.
-	SUBSETLOCI="${SNPLOCIPREFIX}.${SUBSET}.${SNPLOCISUFFIX}"
+    # Note that these can be done in parallel, but I'd rather not manage the processes, and it should be fast.
+    cat "${KMERS}"*"${SNPSPREFIX}" | sed -e "s/FILENAME/${FILE}/" > "${KMERS}.${SNPSPREFIX}"
 
-	#### COMMENT GOES HERE (figure out what this does)
-	# Take the combined loci found to be interesting (overlaps with different alleles amongst genomes), and the set of alleles filtered from the original genome
-	# (in ${GENOMEDIRECTORY}/${SUBSET}.${CONFLICTSDELETED}), and the original original genome file (${FILE}) and combine them into a tab
-	# separated list of the locus (k-mer context around the SNP), the allele (missing nucleotide), the original nucleotide sequence (redundant from the first two
-	# columns), and the filename containing the original genome. (just the filename)
-	# Put the result in SNPs.<bucket> in the ${GENOMEDIRECTORY}.
-	# This can maybe be done with 'grep', i.e. grep -f locifile conflictsoutput ?
-	echo "${FINDALLELE} ${SUBSETLOCI} ${GENOMEDIRECTORY}/${SUBSET}.${CONFLICTSSUFFIX} ${FILE} > ${GENOMEDIRECTORY}/${SNPSPREFIX}.${SUBSET}" >> "${FINDALLELECMDS}"
-    done
 done
 
-"${PARALLELCOMMANDS}" "${NUM_CPUS}" "${FINDALLELECMDS}"
+
+date -Ins
+wait $(jobs -p)
 
 
-cat "${FILE2GENOME}" | while read FILE REST  # For each genome input file...
-do
-    GENOMEDIRECTORY="${DIRPREFIX}.${FILE}"
-    
-    # Combine all of the bucketed SNPs into a single file of SNPs per-genome.
-    cat "${GENOMEDIRECTORY}/${SNPSPREFIX}."*".${MERSSUFFIX}" > "${GENOMEDIRECTORY}/${SNPSPREFIX}"
-done
+echo "Re-combined SNP fasta files for input into mummer"
+date -Ins
+
+
+
+
+
+
+
 
 
 #############
+#############
 #
-# FINISHED Generating loci per-bucket.
+# FINISHED SNPs search for input into mummer
 #
+#############
 #############
 
 
 
 
+#    cat "${KMERS}"*"${SNPFASTAS}" > "${KMERS}${SNPFASTAS}"
 
-# Run mummer to find the position of each SNP in the finished genomes. Don't do this for unassembled draft genomes or merged raw read genomes, since positional information is not informative.
+date -Ins
+
 
 
 if [ -s "${ANNOTATELIST}" ]
@@ -804,6 +708,7 @@ then
 
 	    if [ 0 -lt "${TEST}" ]
 	    then
+		KMERS="${KMERSPREFIX}.${FILE}"
 
 		GENOMEFILE=`grep -w "${GENOME}" "${FASTALIST}" | awk -F'\011' '{print $1}'`
 		echo "genome: ${GENOME} in ${GENOMEDIRECTORY}"
@@ -811,16 +716,19 @@ then
 		# What does this do??  Assign filename to a meaningfully named variable rather than creating it twice.
 		# This turns a list of SNPs (e.g. the SNPs file per-genome) into a fasta-type file for input to mummer
 		SNPSINFASTAFORMAT="${GENOMEDIRECTORY}/${SNPSPREFIX}.${SNPLOCISUFFIX}"
-		awk -F'\011' '{print ">" $1 "_" $2 "\n" $3 }' "${GENOMEDIRECTORY}/${SNPSPREFIX}" > "${SNPSINFASTAFORMAT}"
+		# awk -F'\011' '{print ">" $1 "_" $2 "\n" $3 }' "${GENOMEDIRECTORY}/${SNPSPREFIX}" > "${SNPSINFASTAFORMAT}"
 
 		# These two commands output the SNP positions data.
 		# Mummer takes the per-SNP (loci + specific nucleotide) labeled list of interesting kmers, and finds where they are
 		# in the original genome(s).  The output is loci with a . replacing the differing nucleotide, an underscore, and the nucleotide
 		# that was in the middle.
-		echo "${MUMMER} -maxmatch -l ${K} -b -c ${SNPSINFASTAFORMAT} ${GENOMEFILE} > ${GENOMEDIRECTORY}/${MUMMEROUTPUT}" >> "${MUMMERCMDS}"
+
+		"${MUMMER}" -maxmatch -l "${K}" -b -c "${KMERS}${SNPFASTAS}" "${GENOMEFILE}" | "${PARSEMUMMER}" - > "${KMERS}.${SNPPOSITIONS}"
+		# echo "${MUMMER} -maxmatch -l ${K} -b -c ${SNPSINFASTAFORMAT} ${GENOMEFILE} > ${GENOMEDIRECTORY}/${MUMMEROUTPUT}" >> "${MUMMERCMDS}"
+		# "${PARSEMUMMER}" "${KMERS}${SNPFASTAs}.${MUMMEROUTPUT}" > "${KMERS}.${SNPPOSITIONS}"
 		# This is strictly a basic line-by-line parsing of mummer output; could / should be in a pipeline, as it is v. low
 		# complexity and would avoid writing the mummer output to disk before parsing.
-		echo "${PARSEMUMMER} ${GENOMEDIRECTORY}/${MUMMEROUTPUT} > ${GENOMEDIRECTORY}/${SNPPOSITIONS}" >> "${PARSEMUMMERCMDS}"
+		# echo "${PARSEMUMMER} ${GENOMEDIRECTORY}/${MUMMEROUTPUT} > ${GENOMEDIRECTORY}/${SNPPOSITIONS}" >> "${PARSEMUMMERCMDS}"
 
 	    else
 		echo "Not annotating ${GENOME} with mummer because it is not listed in annotations list: ${ANNOTATELISTINPUT}"
@@ -829,12 +737,13 @@ then
 
 	# Mummer is capable of running in sequence on multiple "query" files (i.e. $GENOMEFILE). I suspect we aren't doing this
 	# so that we can parallelize the processes.  Also, bucket size has an impact on mummer memory use.
-	"${PARALLELCOMMANDS}" "${NUM_CPUS}" "${MUMMERCMDS}"
-	"${PARALLELCOMMANDS}" "${NUM_CPUS}" "${PARSEMUMMERCMDS}"
+	# "${PARALLELCOMMANDS}" "${NUM_CPUS}" "${MUMMERCMDS}"
+	# "${PARALLELCOMMANDS}" "${NUM_CPUS}" "${PARSEMUMMERCMDS}"
 
-	date
+	date -Ins
 	echo "Finished finding SNP positions in finished genomes using mummer."
 fi
+
 
 
 
@@ -846,10 +755,11 @@ touch "${ALLSNPSUNSORTED}"
 
 cat "${FILE2GENOME}" | while read FILE GENOME  # For each genome input file...
 do
+    KMERS="${KMERSPREFIX}.${FILE}"
     GENOMEDIRECTORY="${DIRPREFIX}.${FILE}"
     echo "genome: ${GENOME} in ${GENOMEDIRECTORY}"
     
-    POSITIONSFILE="${GENOMEDIRECTORY}/${SNPPOSITIONS}"
+    POSITIONSFILE="${KMERS}.${SNPPOSITIONS}"
     SNPSFILE="${GENOMEDIRECTORY}/${SNPSPREFIX}"
     
     if [ -s "${POSITIONSFILE}" ]  # We can create the full SNPs data that references locations in the original genome.
@@ -861,12 +771,17 @@ do
 	# We can get a lot of the same mapping (filename, ascension number, genome name) from non-mummer info, so this
 	# seems weak sauce.  Also the output is v. different in terms of the kmers / SNPs that show up (it seems).
 	# TODO FIXME XXX not sure what's going on here.
-	echo "No positions file ${POSITIONSFILE} found, generating all_SNPs_unsorted without position data."
-	awk -v "genome=${GENOME}" '{print  $1 "\t" $2 "\tx\t" genome "\t" }' "${SNPSFILE}" >> "${ALLSNPSUNSORTED}"
+	echo "No positions file ${KMERS}.${SNPPOSITIONS} found, generating all_SNPs_unsorted without position data."
+	awk -v "genome=${GENOME}" '{print  $1 "\t" $2 "\tx\t" genome "\t" }' "${KMERS}.${SNPSPREFIX}" >> "${ALLSNPSUNSORTED}"
     fi
 done
 
 ### Now we have unsorted SNP data from all genomes in one file.
+
+
+
+
+
 
 
 if [ -e "${SNPS_ALL_INPUT}" ] # If we have prior SNPs data...
