@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -evx
 
 # For debugging, use below as first line.
 #!/bin/bash -vx
@@ -14,7 +14,7 @@ echo "Checking dependencies:"
 [ -x consense ] 	&& echo "... consense found in cwd" 				|| echo "consense missing"
 [ -x FastTreeMP ] 	&& echo "... FastTreeMP found in cwd" 				|| echo "FastTreeMP missing"
 [ -x parsimonator ] 	&& echo "... parsimonator found in cwd" 				|| echo "parsimonator missing"
-[ -x kSNP3 ] 		&& echo "... kSNP3 found in cwd" 					|| echo "kSNP3 missing"
+[ -x kSNP4 ] 		&& echo "... kSNP4 found in cwd" 					|| echo "kSNP4 missing"
 
 MISSINGEXAMPLES=0
 echo "Checking for required example files:"
@@ -65,6 +65,9 @@ fi
 # Current working directory:
 CURRENT=`pwd`
 
+# Directory for caching
+CACHE="${HOME}/kSNP/"
+
 # Create our test directory (temporary directory)
 TEMPDIR=`mktemp -d -p "${CURRENT}"`
 INLIST1="${TEMPDIR}/in_list1"
@@ -101,29 +104,29 @@ cat "${INLIST1}"
 
 ### # Example 1
 ### Run1:
-### kSNP3 -in in_list -outdir Run1 -k 13 | tee Run1Log
+### kSNP4 -in in_list -outdir Run1 -k 13 | tee Run1Log
 ### 
 ### Run2:
-### kSNP3 -in in_list -outdir Run2 -k 13 -annotate annotated_genomes | tee Run2Log
+### kSNP4 -in in_list -outdir Run2 -k 13 -annotate annotated_genomes | tee Run2Log
 ### 
 ### Run3:
-### kSNP3 -in in_list -outdir Run3 -k 13 -annotate annotated_genomes -ML -NJ -vcf -core -min_frac 0.75 | tee Run3Log
+### kSNP4 -in in_list -outdir Run3 -k 13 -annotate annotated_genomes -ML -NJ -vcf -core -min_frac 0.75 | tee Run3Log
 ### 
 
-kSNP3 -in "${INLIST1}" -outdir "${RUN11DIR}" -k 13 2>&1 | tee "${RUN11LOG}" &
+kSNP4 -cachedir "${CACHE}" -debug -in "${INLIST1}" -outdir "${RUN11DIR}" -k 13 2>&1 | tee "${RUN11LOG}" &
 
-kSNP3 -in "${INLIST1}" -outdir "${RUN12DIR}" -k 13 -annotate "${ANNDGENOMES1}" 2>&1 | tee "${RUN12LOG}" &
+kSNP4 -cachedir "${CACHE}" -debug -in "${INLIST1}" -outdir "${RUN12DIR}" -k 13 -annotate "${ANNDGENOMES1}" 2>&1 | tee "${RUN12LOG}" &
 
-kSNP3 -in "${INLIST1}" -outdir "${RUN13DIR}" -k 13 -annotate "${ANNDGENOMES1}" -ML -NJ -vcf -core -min_frac 0.75 2>&1 | tee "${RUN13LOG}" &
+kSNP4 -cachedir "${CACHE}" -debug -in "${INLIST1}" -outdir "${RUN13DIR}" -k 13 -annotate "${ANNDGENOMES1}" -ML -NJ -vcf -core -min_frac 0.75 2>&1 | tee "${RUN13LOG}" &
 
 ### # Example2
 ### 
 ### Run1:
-### kSNP3 -in in_list -outdir Run1 -k 19 -annotate annotated_genomes | tee Run1Log
+### kSNP4 -in in_list -outdir Run1 -k 19 -annotate annotated_genomes | tee Run1Log
 ### 
 ### Run2: Note: replace ### with the path to SNPs_all in the Run1 directory!  If any directory names in the path contain spaces be sure to enclose those directory names in quotes (" ").
 ### 
-### kSNP3 -in in_list2 -outdir Run2 -k 19 -annotate annotated_genomes -SNPs_all ###Examples/Example2/ExampleRuns/Run1/SNPs_all### | tee Run2Log
+### kSNP4 -in in_list2 -outdir Run2 -k 19 -annotate annotated_genomes -SNPs_all ###Examples/Example2/ExampleRuns/Run1/SNPs_all### | tee Run2Log
 
 # Copy in_list into place
 sed -e "s/^.*\/Genomes/Genomes/"  < Examples/Example2/in_list | while read LINE ; do echo "${CURRENT}/Examples/Example2/${LINE}" ; done > "${INLIST21}"
@@ -137,16 +140,16 @@ cat "${INLIST22}"
 
 
 { # The second has a dependency on the first. 
-	kSNP3 -in "${INLIST21}" -outdir "${RUN21DIR}" -k 19 -annotate "${ANNDGENOMES2}" 2>&1 | tee "${RUN21LOG}"
+	kSNP4 -cachedir "${CACHE}" -debug -in "${INLIST21}" -outdir "${RUN21DIR}" -k 19 -annotate "${ANNDGENOMES2}" 2>&1 | tee "${RUN21LOG}"
 
-	kSNP3 -in "${INLIST22}" -outdir "${RUN22DIR}" -k 19 -annotate "${ANNDGENOMES2}" -SNPs_all "${RUN21DIR}/SNPs_all" 2>&1 | tee "${RUN22LOG}"
-} &
+	kSNP4 -cachedir "${CACHE}" -debug -in "${INLIST22}" -outdir "${RUN22DIR}" -k 19 -annotate "${ANNDGENOMES2}" -SNPs_all "${RUN21DIR}/SNPs_all" 2>&1 | tee "${RUN22LOG}" &
+} 
 
 echo "Waiting for all examples to complete."
 wait
 
 echo "Exiting for review: ${TEMPDIR}"
-exit 1
+exit
 
 ### This code never reached.  Temporary directory must be cleaned up manually.
 
