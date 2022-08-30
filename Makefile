@@ -186,6 +186,10 @@ binaries/%.pdf : %.pdf
 	cp "$<" "$@"
 
 
+testrun: RunExamples.sh deps
+	PATH=`pwd`:"${PATH}" RunExamples.sh
+
+
 #################################################################
 # DEPENDENCIES
 #################################################################
@@ -237,7 +241,7 @@ mummer: mummer-src.tgz
 	cd $(mummer_build) && autoreconf -fi && ./configure && make mummer
 	cp $(mummer_build)/.libs/mummer ./mummer-bin
 	cp $(mummer_build)/.libs/libumdmummer.so.0.0.0 ./libumdmummer.so.0
-	echo -e '#!/bin/bash\nLD_LIBRARY_PATH=`dirname "$${0}"`:$${LD_LIBRARY_PATH} `dirname "$${0}"`/mummer-bin "$${@}"' > "$@"
+	echo '#!/bin/bash\nLD_LIBRARY_PATH=`dirname "$${0}"`:$${LD_LIBRARY_PATH} `dirname "$${0}"`/mummer-bin "$${@}"' > "$@"
 	chmod a+x "$@"
 	# This is a release candidate, guessing that's why the build doesn't make the standalone binary?
 
