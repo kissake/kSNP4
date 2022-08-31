@@ -237,9 +237,9 @@ def processJellyfishDumps(inputFiles, jellyfishFilename, freqcheckFilename, ):
         # is the total number of kmers.
         statistics = processes.pop().communicate()[0].split(b" ")
         
-        file['minFreq'] = str(statistics[0])
+        file['minFreq'] = int(statistics[0])
         # Note that length may change if minFreq != 1.
-        file['length'] = str(statistics[1])
+        file['length'] = int(statistics[1])
 
         # Then clean up any remaining processes for this file (shouldn't be any)
         for process in processes:
