@@ -172,7 +172,7 @@ for line in INFILE:
 			SNPinfo.append([SNPnum, locusSeq, SNPallele, GenomeID, SNPpos, '---',AccNum])
 		else:
 			temp2 = SNPpos.split(' ')
-			SNPpos = int(temp2[0])
+			SNPpos = int(round(float(temp2[0])))
 			strand = temp2[1]
 			SNPinfo.append([SNPnum, locusSeq, SNPallele, GenomeID, SNPpos, strand, AccNum])
 INFILE.close()		
