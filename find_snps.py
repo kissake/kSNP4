@@ -65,7 +65,8 @@ and also (with the overall list of SNPs):
 
     parser.add_argument('--fasta-suffix', action='store', help='The suffix to use for fasta files to output to mummer for position data', default='SNPs.fasta')
     parser.add_argument('--snp-suffix', action='store', help='The suffix to use for SNP files', default='SNPs')
-
+    parser.add_argument('--snps-all', action='store', help='A set of SNPs output by a previous run, for comparing to this run.')
+    
     # Add default cache-related options.
     kcache.addCacheOptions(parser)
 
@@ -78,6 +79,76 @@ and also (with the overall list of SNPs):
 
 
 
+
+
+    
+
+def loadSNPsFromSNPsAll(bucket, snpsAllFile, startGenomeBit=1):
+    '''
+    This function loads a set of loci from an existing SNPs_all file.  The input
+    file represents the sum total of the loci that can involve our previous data.
+
+    If we only have one new genome, this will be all of the loci ever.  Otherwise,
+    this will ensure that all of these loci are represented, including where they
+    appear in the new genomes, in addition to all SNPs between new genomes.
+    '''
+    # read buffer (trying this out)
+    bufferSize = 32 * 1024
+
+    tab = '\t'
+
+    # Column identifiers
+    center = 2
+    loci = 1
+    genome = 4
+
+    addedSNPsCount = 0
+    lociAddedCount = 0
+    lastSnpLocus = ''
+
+    maxGenomeBit = startGenomeBit
+    # Mapping of genomes to the associated bit in the bit field.
+    genomeBits = {}
+    
+    # Default / initial value for a given locus.
+    noSNPsNoGenomes = {
+        'A': 0,
+        'C': 0,
+        'G': 0,
+        'T': 0,
+        }
+    
+    snps = open(snpsAllFile, 'r')
+
+    nextLines = snps.readlines(bufferSize)
+    while nextLines != []:
+        for kmer in nextLines:
+            snpData = kmer.split(tab)
+            snpCenter = snpData[center]
+            snpLocus = snpData[loci]
+            snpGenome = snpData[genome]
+
+            thisBit = genomeBits.setdefault(snpGenome, maxGenomeBit)
+            if thisBit == maxGenomeBit:
+                maxGenomeBit = maxGenomeBit * 2
+            
+            # Set the bit corresponding to this central nucleotide for this genome
+            bucket[snpLocus][snpCenter] = bucket.setdefault(snpLocus, noSNPsNoGenomes.copy())[snpCenter] | thisBit
+
+            # Overhead:
+            if snpLocus != lastSnpLocus:
+                lociAddedCount = lociAddedCount + 1
+                # logging.debug("Added SNP: %s: %s", lastSnpLocus, bucket[lastSnpLocus])
+            lastSnpLocus = snpLocus
+            addedSNPsCount = addedSNPsCount + 1
+        nextLines = snps.readlines(bufferSize)
+
+    # logging.debug("Added SNP: %s: %s", lastSnpLocus, bucket[lastSnpLocus])
+    
+    logging.info("Added %s SNP kmers to bucket (%s loci), new bucket size: %s loci", addedSNPsCount, lociAddedCount, len(bucket))
+    
+    return (bucket, genomeBits)
+    
 
     
 def fillBucket(genomeList, k ):
@@ -114,18 +185,18 @@ def fillBucket(genomeList, k ):
             nextLines = thisGenome.readlines(bufferSize)
         maxGenomeBit = maxGenomeBit * 2 # Move to a more significant bit.
         thisGenome.close()
-        logging.debug("bucket size: %s kmers", len(thisBucket))
+        logging.debug("bucket size: %s loci", len(thisBucket))
 
     return (thisBucket, genomeBits)
 
 
 def findConflicts(genomeSets):
     conflictingGenomes = 0
-    sets = genomeSets.copy()
+    remainingGenomeSets = genomeSets.copy()
     
-    while sets:
-        (nucleotideA, setA) = sets.pop()
-        for (nucleotideB, setB) in sets:
+    while remainingGenomeSets:
+        (nucleotideA, setA) = remainingGenomeSets.pop()
+        for (nucleotideB, setB) in remainingGenomeSets:
 
             # This should run for every pair of nucleotide integers.
             # It will set any bits in conflictingGenomes that correspond to a genome
@@ -167,11 +238,10 @@ def dumpBucket(bucket, genomeBits, genomeList, k):
 
     # Collect statistics for debugging
     totalSNPs = 0
+    writtenKmers = 0
     
     # create reverse map from genomeBit to genome:
     bitGenomes = [ (bitValue, genome) for (genome, bitValue) in genomeBits.items() ]
-
-    logging.debug("genomeBits: %s", genomeBits)
     
     # Now the thisBucket hash table is fully populated...
     for (locus, nucleotideGenomes) in bucket.items():
@@ -193,6 +263,7 @@ def dumpBucket(bucket, genomeBits, genomeList, k):
             #  2-4 nucleotides: There is an SNP here.
             
             totalSNPs = totalSNPs + 1 # Count the number of SNPs found.
+            # logging.debug("Found SNP: %s", deconflicted)
 
             # These two loops should be v. fast; small lists, bitwise operations, at most
             # 4*len(genomeList) tests and len(genomeList)*2 writes.
@@ -201,8 +272,9 @@ def dumpBucket(bucket, genomeBits, genomeList, k):
                     if bitValue & genomeSet != 0:
                         # This should be called at most len(genomeList) times.
                         # writeSNP(locus, nucleotide, genome, SNPsFile)
+                        writtenKmers = writtenKmers + 1
                         writeSNP(locus, nucleotide, genomeList[genome], centerPos)
-    return totalSNPs
+    return (totalSNPs, writtenKmers)
 
                         
 
@@ -215,15 +287,27 @@ def getK(genomeList):
     return k
     
 
-# def findSNPs(genomeList, SNPsFile, genomeSNPsSuffix):
-def findSNPs(genomeList, fastaSuffix, snpSuffix):
+def findSNPs(genomeList, fastaSuffix, snpSuffix, snpsAll=None):
     k = getK(genomeList)
-
 
     logging.info('Looking for SNPs in %s genomes', len(genomeList))
     (thisBucket, genomeBits) = fillBucket(genomeList, k)
-    logging.info('Found %s kmers in the %s genomes', len(thisBucket), len(genomeList))
+    logging.info('Found %s loci in the %s genomes', len(thisBucket), len(genomeList))
 
+    if snpsAll is not None:
+        logging.info("snpsAll: %s -> Therefore we are going to load SNPs from that file", snpsAll)
+        # Start genome bit for new genomes:
+        nextGenomeBit = max(list(genomeBits.values())) * 2
+        (nextBucket, newGenomeBits) = loadSNPsFromSNPsAll(thisBucket, snpsAll, nextGenomeBit)
+
+        # Swap in our new bucket. (may not be necessary if we modified the one we passed in-place?)
+        thisBucket = nextBucket
+
+        # Nothing else to do;  dumpBucket will only dump the new (non-SNPs_all related) genomes, and
+        # those only if they either intersect with the SNPs_all data after deconflicting, or they
+        # internally (within new genomes) create new SNPs.
+        
+        
     outputFiles = {}
     for genome in genomeList:
         outputFiles[genome] = {
@@ -235,15 +319,16 @@ def findSNPs(genomeList, fastaSuffix, snpSuffix):
         outputFiles[genome]['snp'].reconfigure(line_buffering=False)
     
     # dumpBucket(thisBucket, genomeBits, genomeList, SNPsFile, k)
-    totalSNPs = dumpBucket(thisBucket, genomeBits, outputFiles, k)
-    logging.info('Found %s SNPs in this partition', totalSNPs)
+    (totalSNPs, writtenKmers) = dumpBucket(thisBucket, genomeBits, outputFiles, k)
+    logging.info('Found %s SNPs in this partition, wrote %s SNP kmers', totalSNPs, writtenKmers)
 
     # Clean up, flush data to disk.
     for outputFiles in outputFiles.values():
         for fileType in outputFiles.values():
             fileType.close()
 
-            
+
+     
             
 ####################################
 ####################################
@@ -275,4 +360,5 @@ if __name__ == "__main__":
     genomeFiles = options.filteredGenomes # Looks like fsplitX.SNPs.partY.mers AND fsplitX.SNPs.partY.mers.fasta (last for mummer)
 
     # This output will be piped into mummer to get position information to link us with annotation data.
-    findSNPs(genomeFiles, options.fasta_suffix, options.snp_suffix)
+    findSNPs(genomeFiles, options.fasta_suffix, options.snp_suffix, options.snps_all)
+
