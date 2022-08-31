@@ -89,6 +89,7 @@ export FINDALLELECMDS="cmds_find_allele"
 export SNPSPREFIX="SNPs"
 export CONFLICTSSUFFIX="conflictsDeleted"
 export MERSSUFFIX="mers"
+export SNPLOCISUFFIX="fasta"
 
 export MUMMERCMDS="cmds_mummer"
 export PARSEMUMMERCMDS="cmds_parse_mummer"
@@ -573,20 +574,6 @@ date
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #############
 #############
 #
@@ -611,25 +598,105 @@ date -Ins
 
 cut -f 1 "${FILE2GENOME}" |
     sed -e "s/^/${KMERSPREFIX}./" |
-    xargs -n 1 -P "${NUM_CPUS}" partitionKmers.py --debug --partition "${PARTITIONS}" --suffix "${PARTITIONSUFFIX}"
+    xargs -t -n 1 -P "${NUM_CPUS}" partitionKmers.py --debug --partition "${PARTITIONS}" --suffix "${PARTITIONSUFFIX}"
 
 date -Ins
 
 
-echo "Finished partitioning kmer files."
+echo "Finished partitioning new kmer files."
 
-COUNT=0
-while [ "${COUNT}" -lt "${NUMPARTS}" ]
-do
-    echo "${PARTITIONSUFFIX}${COUNT}"
-    let COUNT="${COUNT}"+1
+
+
+SNPS_ALL_MERS="input_SNPs.mers"
+SNPS_ALL_DATA="input_SNPs"
+
+
+if [ -e "${SNPS_ALL_INPUT}" ]   # If the SNPs_all argument points to a file that exists... (cached answers)
+then
+
+    # This case represents the merging of SNPs between two runs.  The union cannot include SNPs
+    # that are not present in one of the first or the second set of genomes, so it is likely lossy
+    echo "Using existing SNPs from ${SNPS_ALL_INPUT} file"
+    date
+
+    # Partition SNPs_all file:
     
-done | xargs -I "${PARTITIONSUFFIX}0" -n 1 -P "${NUM_CPUS}" find_snps.py --fasta-suffix "${SNPFASTAS}" --snp-suffix "${SNPSPREFIX}" "${KMERSPREFIX}."*"${PARTITIONSUFFIX}0"
+    # Copy the second column to the first to use as an index for partitioning, remove blank lines.
+    awk '/./{print $2 "\t" $0 ;}' < "${SNPS_ALL_INPUT}" > "${SNPS_ALL_MERS}"
 
-date -Ins
+    # Partition the data using existing partitions.
+    partitionKmers.py --debug --partition "${PARTITIONS}" --suffix "${PARTITIONSUFFIX}" "${SNPS_ALL_MERS}"
+    rm "${SNPS_ALL_MERS}"
 
-echo "Found SNPs"
-date
+    # Then restore the partitioned data to the SNPs_all format for parsing by find_snps
+    COUNT=0
+    while [ "${COUNT}" -lt "${NUMPARTS}" ]
+    do
+	sed -e 's/^[^\t]*\t//' < "${SNPS_ALL_MERS}${PARTITIONSUFFIX}${COUNT}" > "${SNPS_ALL_DATA}${PARTITIONSUFFIX}${COUNT}"
+	rm "${SNPS_ALL_MERS}${PARTITIONSUFFIX}${COUNT}"
+	let COUNT="${COUNT}"+1
+    
+    done
+    # Previously created fasta files out of this... why?
+    date -Ins
+
+    # This block of code uses a little cleverness.
+    # It runs the code against all input data, partition by partition, and
+    # in parallel.  It does this by first having xargs edit the commandline
+    # to swap the current partition label in for the substitution string, and
+    # then having the shell(?) glob the resulting string.
+    #
+    # Other solutions are possible, including by using other means to ensure
+    # that the input consists of the SNPs_all partition first, then all of 
+    # the kmer files for that partition, on one line, followed by similar
+    # lines for other partitions, then having xargs work line-by-line.
+
+    WHICHPART="THISPART"
+    COUNT=0
+    while [ "${COUNT}" -lt "${NUMPARTS}" ]
+    do
+	# This is the SNP file, an argument to --snps-all
+	find . -name "${SNPS_ALL_DATA}${PARTITIONSUFFIX}${COUNT}" -printf "%f "
+	# And these are the kmer files, regular arguments, terminated with a newline.
+	find . -name "${KMERSPREFIX}*${PARTITIONSUFFIX}${COUNT}" -printf "%f " | sed -e 's/ $/\n/'
+	let COUNT="${COUNT}"+1
+	
+    done | xargs -t -L 1 -P "${NUM_CPUS}" find_snps.py --debug --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}" --snps-all
+
+    date -Ins
+
+    echo "Found SNPs and merged with existing SNPs."
+
+else
+    # This is the default case where we don't have a previous SNPS_ALL_INPUT file provided.
+    date -Ins
+
+
+    # This block of code uses a little cleverness.
+    # It runs the code against all input data, partition by partition, and
+    # in parallel.  It does this by first having xargs edit the commandline
+    # to swap the current partition label in for the substitution string, and
+    # then having the shell(?) glob the resulting string.
+    #
+    # Other solutions are possible, including by using other means to ensure
+    # that the input consists of  all of the kmer files for that partition on
+    # one line, followed by similar lines for other partitions, then having
+    # xargs work line-by-line.
+    
+    COUNT=0
+    while [ "${COUNT}" -lt "${NUMPARTS}" ]
+    do
+	# These are the kmer files, regular arguments, terminated with a newline.
+	find . -name "${KMERSPREFIX}*${PARTITIONSUFFIX}${COUNT}" -printf "%f " | sed -e 's/ $/\n/'
+	let COUNT="${COUNT}"+1
+	
+    done | xargs -t -L 1 -P "${NUM_CPUS}" find_snps.py --debug --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}"
+
+    date -Ins
+    
+    echo "Found SNPs"
+fi
+
 
 cat "${FILE2GENOME}" | while read FILE REST
 do
@@ -641,7 +708,6 @@ do
 done
 
 date -Ins
-wait $(jobs -p)
 
 
 echo "Re-combined SNP fasta files for input into mummer"
@@ -660,15 +726,10 @@ done
 
 
 date -Ins
-wait $(jobs -p)
 
 
 echo "Re-combined SNP fasta files for input into mummer"
 date -Ins
-
-
-
-
 
 
 
@@ -1106,6 +1167,7 @@ mv -f nodes.* "${TEMPORARYFILES}/" || true
 mv -f tree_tipAlleleCounts.*.NodeLabel.tre "${TEMPORARYFILES}/" || true
 mv -f tree_nodeLabel.* "${TEMPORARYFILES}/" || true
 mv consense.out intree.source outtree.resolved "${TEMPORARYFILES}/" || true
+mv partitions.txt "${TEMPORARYFILES}/"  || true
 
 mv genbank_from_NCBI.gbk.* "${TEMPORARYFILES}/" || true
 
