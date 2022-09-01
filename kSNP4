@@ -1,4 +1,3 @@
-#!/bin/bash -vx
 #!/bin/bash
 
 ########################################################################
@@ -76,6 +75,9 @@ export BUILDTREE="${KSNPPATH}/buildtree"
 export SUMMARIZEANNOTATION="${KSNPPATH}/summarize_annotation.py"
 export GETFILTEREDKMERS="${KSNPPATH}/get_filtered_kmers.py"
 export FREQCHECK="${KSNPPATH}/inline_frequency_check.py"
+export PARTITIONKMERS="${KSNPPATH}/partitionKmers.py"
+export FINDSNPS="${KSNPPATH}/find_snps.py"
+export GUESSPARTITION="${KSNPPATH}/guessPartition.py"
 
 
 
@@ -290,6 +292,10 @@ do
 
 	-debug)
 	    DEBUG=1
+	    # Same as specifying -x on the shell shebang above.
+	    set -o xtrace
+	    # Same as specifying -v on the shell shebang above.
+	    set -o verbose
 	    shift # Argument
 	    ;;
 
@@ -592,13 +598,13 @@ PARTITIONSUFFIX='.part'
 SNPFASTAS='.SNPs.fasta'
 date -Ins
 
-guessPartition.py --debug --input kmers.fsplit0 "${NUMPARTS}" > "${PARTITIONS}"
+"${GUESSPARTITION}" --debug --input kmers.fsplit0 "${NUMPARTS}" > "${PARTITIONS}"
 
 date -Ins
 
 cut -f 1 "${FILE2GENOME}" |
     sed -e "s/^/${KMERSPREFIX}./" |
-    xargs -t -n 1 -P "${NUM_CPUS}" partitionKmers.py --debug --partition "${PARTITIONS}" --suffix "${PARTITIONSUFFIX}"
+    xargs -t -n 1 -P "${NUM_CPUS}" "${PARTITIONKMERS}" --debug --partition "${PARTITIONS}" --suffix "${PARTITIONSUFFIX}"
 
 date -Ins
 
@@ -625,7 +631,7 @@ then
     awk '/./{print $2 "\t" $0 ;}' < "${SNPS_ALL_INPUT}" > "${SNPS_ALL_MERS}"
 
     # Partition the data using existing partitions.
-    partitionKmers.py --debug --partition "${PARTITIONS}" --suffix "${PARTITIONSUFFIX}" "${SNPS_ALL_MERS}"
+    "${PARTITIONKMERS}" --debug --partition "${PARTITIONS}" --suffix "${PARTITIONSUFFIX}" "${SNPS_ALL_MERS}"
     rm "${SNPS_ALL_MERS}"
 
     # Then restore the partitioned data to the SNPs_all format for parsing by find_snps
@@ -651,7 +657,6 @@ then
     # the kmer files for that partition, on one line, followed by similar
     # lines for other partitions, then having xargs work line-by-line.
 
-    WHICHPART="THISPART"
     COUNT=0
     while [ "${COUNT}" -lt "${NUMPARTS}" ]
     do
@@ -661,7 +666,7 @@ then
 	find . -name "${KMERSPREFIX}*${PARTITIONSUFFIX}${COUNT}" -printf "%f " | sed -e 's/ $/\n/'
 	let COUNT="${COUNT}"+1
 	
-    done | xargs -t -L 1 -P "${NUM_CPUS}" find_snps.py --debug --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}" --snps-all
+    done | xargs -t -L 1 -P "${NUM_CPUS}" "${FINDSNPS}" --debug --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}" --snps-all
 
     date -Ins
 
@@ -690,7 +695,7 @@ else
 	find . -name "${KMERSPREFIX}*${PARTITIONSUFFIX}${COUNT}" -printf "%f " | sed -e 's/ $/\n/'
 	let COUNT="${COUNT}"+1
 	
-    done | xargs -t -L 1 -P "${NUM_CPUS}" find_snps.py --debug --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}"
+    done | xargs -t -L 1 -P "${NUM_CPUS}" "${FINDSNPS}" --debug --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}"
 
     date -Ins
     
@@ -1191,7 +1196,7 @@ if [ "${DEBUG}" -ne 1 ]
 then
     rm -r "${TEMPORARYFILES}"
 else
-    echo "Debug was: ${DEBUG}"
+    echo "Debug was: ${DEBUG}, not removing temporary files in ${TEMPORARYFILES}"
 fi
 
 # Put the debug output into the current working directory (the run directory)
