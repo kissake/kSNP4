@@ -74,7 +74,9 @@ perlpl = SNPs_all_2_fasta_matrix3.pl
 
 # Names of the python binaries that need to be created.  The source files are
 # determined from these filenames.
-pythonbin = binaries/FTPgenomes binaries/number_SNPs_all3 binaries/ParAnn binaries/parse_assembly_summary
+pythonbin = binaries/FTPgenomes binaries/number_SNPs_all3 binaries/ParAnn binaries/parse_assembly_summary \
+	binaries/find_snps binaries/get_filtered_kmers binaries/guessPartition \
+	binaries/inline_frequency_check binaries/partitionKmers
 
 dependencies = FastTreeMP parsimonator mummer consense #jellyfish
 
@@ -211,7 +213,7 @@ FastTreeMP: FastTree.c
 
 FastTree.c:
 	curl -L "http://www.microbesonline.org/fasttree/FastTree.c" > $@
-	
+
 # Jellyfish
 # This is available as a package from Debian with the version available on 
 # GitHub here: https://github.com/gmarcais/Jellyfish/releases/tag/v2.3.0
@@ -260,31 +262,21 @@ parsimonator-src.zip:
 	curl -L "https://github.com/stamatak/Parsimonator-1.0.2/archive/refs/heads/master.zip" >$@
 
 
-
-test: example1 example2
-
-example1: binaries kSNP4
-
-example2: binaries kSNP4
-
-clean:
-	rm binaries/* || echo "Clean"
-	rm -r $(packagedir) || echo "Clean"
-	rm $(all_products) || echo "Clean"
-	rm $(dependencies) || echo "Clean"
-
-distclean: clean
-	rm parsimonator-src.zip || echo "Clean"
-	rm mummer-src.tgz || echo "Clean"
-	rm phylip-3.697.tar.gz || echo "Clean"
-	rm FastTree.c || echo "Clean"
-	rm -r $(mummer_build) || echo "Clean"
-	rm -r $(parsimonator_build) || echo "Clean"
-	rm -r $(consense_build) || echo "Clean"
-
-
 Examples: Examples.zip
 	unzip "$<"
 
 Examples.zip:
 	curl -L "https://downloads.sourceforge.net/project/ksnp/Examples.zip" >$@
+
+
+clean:
+	rm binaries/* || true
+	rm -r $(packagedir) || true
+	rm $(all_products) || true
+	rm $(dependencies) || true
+
+distclean: clean
+	rm parsimonator-src.zip mummer-src.tgz mummer-bin libumdmummer.so.0 mummer phylip-3.697.tar.gz FastTree.c Examples.zip  || true
+	rm -r  $(mummer_build) $(parsimonator_build) $(consense_build) __MACOSX Examples __pycache__ || true
+
+
