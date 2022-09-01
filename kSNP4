@@ -1075,6 +1075,10 @@ then
     [ -e "${ANNOTATELISTHEADERS}" ] && rm "${ANNOTATELISTHEADERS}"
     touch "${ANNOTATELISTHEADERS}"
 
+    # Kick off the genbank file with the genbank data provided by the user.  Currently the get_genbank_file4
+    # script will simply append to this file if it exists.
+    cp "${GENBANKFILEINPUT}" genbank_from_NCBI.gbk
+
     cat "${ANNOTATELIST}" | while read GENOME
     do
 	FILE_CHECK=`grep -w  "${GENOME}" "${FASTALIST}"  | wc -l`
