@@ -113,11 +113,11 @@ cat "${INLIST1}"
 ### kSNP4 -in in_list -outdir Run3 -k 13 -annotate annotated_genomes -ML -NJ -vcf -core -min_frac 0.75 | tee Run3Log
 ### 
 
-kSNP4 -cachedir "${CACHE}" -debug -in "${INLIST1}" -outdir "${RUN11DIR}" -k 13 2>&1 | tee "${RUN11LOG}" &
+kSNP4 -cachedir "${CACHE}" -debug -in "${INLIST1}" -outdir "${RUN11DIR}" -k 13 2>&1 | tee "${RUN11LOG}" 
 
-kSNP4 -cachedir "${CACHE}" -debug -in "${INLIST1}" -outdir "${RUN12DIR}" -k 13 -annotate "${ANNDGENOMES1}" 2>&1 | tee "${RUN12LOG}" &
+kSNP4 -cachedir "${CACHE}" -debug -in "${INLIST1}" -outdir "${RUN12DIR}" -k 13 -annotate "${ANNDGENOMES1}" 2>&1 | tee "${RUN12LOG}" 
 
-kSNP4 -cachedir "${CACHE}" -debug -in "${INLIST1}" -outdir "${RUN13DIR}" -k 13 -annotate "${ANNDGENOMES1}" -ML -NJ -vcf -core -min_frac 0.75 2>&1 | tee "${RUN13LOG}" &
+kSNP4 -cachedir "${CACHE}" -debug -in "${INLIST1}" -outdir "${RUN13DIR}" -k 13 -annotate "${ANNDGENOMES1}" -ML -NJ -vcf -core -min_frac 0.75 2>&1 | tee "${RUN13LOG}" 
 
 ### # Example2
 ### 
@@ -142,7 +142,7 @@ cat "${INLIST22}"
 { # The second has a dependency on the first. 
 	kSNP4 -cachedir "${CACHE}" -debug -in "${INLIST21}" -outdir "${RUN21DIR}" -k 19 -annotate "${ANNDGENOMES2}" 2>&1 | tee "${RUN21LOG}"
 
-	kSNP4 -cachedir "${CACHE}" -debug -in "${INLIST22}" -outdir "${RUN22DIR}" -k 19 -annotate "${ANNDGENOMES2}" -SNPs_all "${RUN21DIR}/SNPs_all" 2>&1 | tee "${RUN22LOG}" &
+	kSNP4 -cachedir "${CACHE}" -debug -in "${INLIST22}" -outdir "${RUN22DIR}" -k 19 -annotate "${ANNDGENOMES2}" -SNPs_all "${RUN21DIR}/SNPs_all" 2>&1 | tee "${RUN22LOG}" 
 } 
 
 echo "Waiting for all examples to complete."
