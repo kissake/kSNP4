@@ -8,7 +8,7 @@
 #################################################################
 
 # Current version:
-ver = 3.1
+ver = 4
 
 
 # Set this to 'true' to generate a smaller binary package, but note that
@@ -24,48 +24,47 @@ perlmonolith = false
 
 # The directory names to use in the binary package
 packagedir = kSNP$(ver)_Linux_package
-binarydir = $(packagedir)/kSNP4
+binarydir = $(packagedir)/kSNP$(ver)
 
-all_products = kSNP4_Source.zip kSNP4.zip Examples.zip
+all_products = kSNP$(ver)_Source.zip kSNP$(ver).zip Examples.zip
 
 # All of the perl scripts.  Used to generate binaries in the perlmonolith case.
 perl = add_paths3 annotate_SNPs_from_genbankFiles3 \
        CheckFileNames core_SNPs3 delete_allele_conflicts3 distance_tree3 \
-       divide_input3 fasta_remove_new_lines3 FG2IF find_allele3 \
+       find_allele3 \
        find_unresolved_clusters3 force_binary_tree genome_names3 \
-       get_genbank_file3 get_quantile3 Kchooser labelTree_AlleleCount-new3 \
-       labelTree_HGT3 label_tree_nodes3 LE2Unix MakeFasta \
-       MakeKSNP3infile merge_fasta_reads3 NodeChiSquare2tree3 \
-       NodeChiSquare2tree31 parallel_commands3 \
+       get_genbank_file3 get_quantile3 labelTree_AlleleCount-new3 \
+       label_tree_nodes3 LE2Unix \
+       merge_fasta_reads3 NodeChiSquare2tree3 \
+       parallel_commands3 \
        parse_mummer4kSNP3 parse_protein_annotation_counts3 parse_SNPs2VCF3 \
        pick_snps_from_kmer_genome_counts3 rc_kmer_freqs3 \
-       rename_from_table3 renumber_probes3 rm_node_names_from_tree3 \
+       rename_from_table3 renumber_probes3 \
        SNP_matrix2dist_matrix3 SNPs2fastaQuery3 SNPs2nodes-new3 \
-       split_by_fasta_entry3 subset_mer_list3 subset_mers3 \
-       subset_SNPs_all3 tree_bioperl3 tree_nodes3 tree_plotter3
+       subset_mer_list3 subset_mers3 \
+       subset_SNPs_all3 tree_nodes3
 
 # All of the perl binaries that need to be created.
 perlbin = binaries/add_paths3 binaries/annotate_SNPs_from_genbankFiles3 \
 	  binaries/CheckFileNames binaries/core_SNPs3 \
 	  binaries/delete_allele_conflicts3 binaries/distance_tree3 \
-	  binaries/divide_input3 binaries/fasta_remove_new_lines3 \
-	  binaries/FG2IF binaries/find_allele3 \
+	  binaries/find_allele3 \
 	  binaries/find_unresolved_clusters3 binaries/force_binary_tree \
 	  binaries/genome_names3 binaries/get_genbank_file3 \
-	  binaries/get_quantile3 binaries/Kchooser \
-	  binaries/labelTree_AlleleCount-new3 binaries/labelTree_HGT3 \
-	  binaries/label_tree_nodes3 binaries/LE2Unix binaries/MakeFasta \
-	  binaries/MakeKSNP3infile binaries/merge_fasta_reads3 \
-	  binaries/NodeChiSquare2tree3 binaries/NodeChiSquare2tree31 \
+	  binaries/get_quantile3 \
+	  binaries/labelTree_AlleleCount-new3  \
+	  binaries/label_tree_nodes3 binaries/LE2Unix \
+	  binaries/merge_fasta_reads3 \
+	  binaries/NodeChiSquare2tree3 \
 	  binaries/parallel_commands3 binaries/parse_mummer4kSNP3 \
 	  binaries/parse_protein_annotation_counts3 binaries/parse_SNPs2VCF3 \
 	  binaries/pick_snps_from_kmer_genome_counts3 binaries/rc_kmer_freqs3 \
 	  binaries/rename_from_table3 binaries/renumber_probes3 \
-	  binaries/rm_node_names_from_tree3 binaries/SNP_matrix2dist_matrix3 \
+	  binaries/SNP_matrix2dist_matrix3 \
 	  binaries/SNPs2fastaQuery3 binaries/SNPs2nodes-new3 \
-	  binaries/split_by_fasta_entry3 binaries/subset_mer_list3 \
+	  binaries/subset_mer_list3 \
 	  binaries/subset_mers3 binaries/subset_SNPs_all3 \
-	  binaries/tree_bioperl3 binaries/tree_nodes3 binaries/tree_plotter3
+	  binaries/tree_nodes3
 
 # Ideally we can rename this, or rename all of the other perl scripts to match
 # the .pl suffix for this one.  Consistency is the name of the game and
@@ -76,9 +75,9 @@ perlpl = SNPs_all_2_fasta_matrix3.pl
 # determined from these filenames.
 pythonbin = binaries/FTPgenomes binaries/number_SNPs_all3 binaries/ParAnn binaries/parse_assembly_summary \
 	binaries/find_snps binaries/get_filtered_kmers binaries/guessPartition \
-	binaries/inline_frequency_check binaries/partitionKmers
+	binaries/inline_frequency_check binaries/partitionKmers binaries/Kchooser4
 
-dependencies = FastTreeMP parsimonator mummer consense #jellyfish
+dependencies = FastTreeMP parsimonator mummer consense jellyfish
 
 
 #################################################################
@@ -103,29 +102,29 @@ docs: binaries/THE\ BSD\ OPENSOURCE\ LICENSE.pdf binaries/kSNP3.021\ User\ Guide
 # being successful.
 # I think this defaults to the revision currently checked out, minus local
 # revisions, and excludes the .hg directory to avoid sharing extra detail
-kSNP4_Source.zip: kSNP4.zip
-	hg archive --exclude ".hg*" --prefix kSNP4.1_Source $@
+kSNP$(ver)_Source.zip: kSNP$(ver).zip
+	hg archive --exclude ".hg*" --prefix kSNP$(ver)_Source $@
 
 
 # Build a different zip file depending on whether we are using a monolithic
 # perl binary.
 ifeq ($(perlmonolith),true)
-$(packagedir): $(docs) kSNP4 $(perlbin) binaries/perlscripts $(pythonbin) $(dependencies)
+$(packagedir): $(docs) kSNP$(ver) $(perlbin) binaries/perlscripts $(pythonbin) $(dependencies)
 	mkdir -p $(packagedir)
 	mkdir -p $(binarydir)
 	for doc in $(docs) ; do cp $$doc $(packagedir) ; done
-	for bin in $(perlbin) $(pythonbin) binaries/perlscripts kSNP4 ; do cp $$bin $(binarydir) ; done
+	for bin in $(perlbin) $(pythonbin) binaries/perlscripts kSNP$(ver) ; do cp $$bin $(binarydir) ; done
 	for dep in $(dependencies) ; do cp $$dep $(binarydir) ; done
 else
-$(packagedir): $(docs) kSNP4 $(perlbin) $(pythonbin) $(dependencies)
+$(packagedir): $(docs) kSNP$(ver) $(perlbin) $(pythonbin) $(dependencies)
 	mkdir -p $(packagedir)
 	mkdir -p $(binarydir)
 	for doc in $(docs) ; do cp $$doc $(packagedir) ; done
-	for bin in $(perlbin) $(pythonbin) kSNP4 ; do cp $$bin $(binarydir) ; done
+	for bin in $(perlbin) $(pythonbin) kSNP$(ver) ; do cp $$bin $(binarydir) ; done
 	for dep in $(dependencies) ; do cp $$dep $(binarydir) ; done
 endif
 
-kSNP4.zip: $(packagedir)
+kSNP$(ver).zip: $(packagedir)
 	zip --symlinks -r $@ $(packagedir)
 
 #################################################################
@@ -262,6 +261,21 @@ parsimonator-src.zip:
 	curl -L "https://github.com/stamatak/Parsimonator-1.0.2/archive/refs/heads/master.zip" >$@
 
 
+jellyfish_build=Jellyfish-2.3.0
+jellyfish: jellyfish-src.tgz
+	tar -xf $<
+	cd $(jellyfish_build)
+	autoreconf -i
+	./configure
+	make -j 4
+
+
+jellyfish-src.tgz:
+	curl -L "https://github.com/gmarcais/Jellyfish/archive/refs/tags/v2.3.0.tar.gz" >$@
+
+
+
+
 Examples: Examples.zip
 	unzip "$<"
 
@@ -276,7 +290,7 @@ clean:
 	rm $(dependencies) || true
 
 distclean: clean
-	rm parsimonator-src.zip mummer-src.tgz mummer-bin libumdmummer.so.0 mummer phylip-3.697.tar.gz FastTree.c Examples.zip  || true
-	rm -r  $(mummer_build) $(parsimonator_build) $(consense_build) __MACOSX Examples __pycache__ || true
+	rm parsimonator-src.zip mummer-src.tgz mummer-bin libumdmummer.so.0 mummer phylip-3.697.tar.gz jellyfish-src.tgz FastTree.c Examples.zip  || true
+	rm -r  $(mummer_build) $(parsimonator_build) $(consense_build) $(jellyfish_build) __MACOSX Examples __pycache__ || true
 
 
