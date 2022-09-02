@@ -105,7 +105,7 @@ all: $(all_products)
 #################################################################
 
 
-testrun: RunExamples.sh deps Examples
+testrun: RunExamples.sh Examples all
 	PATH=`pwd`/binaries:"${PATH}" ./RunExamples.sh
 
 
@@ -295,7 +295,7 @@ jellyfish_build=Jellyfish-2.3.0
 binaries/jellyfish: jellyfish-src.tgz
 	tar -xf $<
 	cd $(jellyfish_build) && autoreconf -i && ./configure && make -j 4
-	cp $(jellyfish_build)/bin/jellyfish binaries/
+	cp $(jellyfish_build)/bin/.libs/jellyfish $@
 
 
 jellyfish-src.tgz:
