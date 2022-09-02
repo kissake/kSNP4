@@ -51,7 +51,7 @@ export PICKSNPSFROMKMERS="${KSNPPATH}/pick_snps_from_kmer_genome_counts3"
 export FINDALLELE="${KSNPPATH}/find_allele3"
 export MUMMER="${KSNPPATH}/mummer"
 export PARSEMUMMER="${KSNPPATH}/parse_mummer4kSNP3"
-export NUMBERSNPS="${KSNPPATH}/number_SNPs_all3"
+export NUMBERSNPS="${KSNPPATH}/number_SNPs_all4"
 export RENAMEFROMTABLE="${KSNPPATH}/rename_from_table3"
 export PARSESNPSTOVCF="${KSNPPATH}/parse_SNPs2VCF3"
 export SNPSTOFASTAMATRIX="${KSNPPATH}/SNPs_all_2_fasta_matrix3"  # NOTE: This is a .pl file and probably should be the name without a suffix. - JN
@@ -72,12 +72,12 @@ export ANNOTATESNPFROMGENBANK="${KSNPPATH}/annotate_SNPs_from_genbankFiles3"
 export PARSEPROTEINANNOTATIONCOUNTS="${KSNPPATH}/parse_protein_annotation_counts3"
 export PARANN="${KSNPPATH}/ParAnn"
 export BUILDTREE="${KSNPPATH}/buildtree"
-export SUMMARIZEANNOTATION="${KSNPPATH}/summarize_annotation.py"
-export GETFILTEREDKMERS="${KSNPPATH}/get_filtered_kmers.py"
-export FREQCHECK="${KSNPPATH}/inline_frequency_check.py"
-export PARTITIONKMERS="${KSNPPATH}/partitionKmers.py"
-export FINDSNPS="${KSNPPATH}/find_snps.py"
-export GUESSPARTITION="${KSNPPATH}/guessPartition.py"
+export SUMMARIZEANNOTATION="${KSNPPATH}/summarize_annotation"
+export GETFILTEREDKMERS="${KSNPPATH}/get_filtered_kmers"
+export FREQCHECK="${KSNPPATH}/inline_frequency_check"
+export PARTITIONKMERS="${KSNPPATH}/partitionKmers"
+export FINDSNPS="${KSNPPATH}/find_snps"
+export GUESSPARTITION="${KSNPPATH}/guessPartition"
 
 
 
@@ -865,7 +865,7 @@ export ALLSNPSSORTEDLABELED="all_SNPs_sorted_labelLoci"
 
 # Create a unique number for each distinct loci, separates loci by blank line.
 # Outputs to all_SNPs_sorted_labelLoci
-"${NUMBERSNPS}" "${ALLSNPSSORTED}"
+"${NUMBERSNPS}" < "${ALLSNPSSORTED}" > "${ALLSNPSSORTEDLABELED}"
 
 export SNPSALLOUTPUT="SNPs_all"
 
