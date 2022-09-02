@@ -98,6 +98,7 @@ export PARSEMUMMERCMDS="cmds_parse_mummer"
 
 export MUMMEROUTPUT="mummer.out"
 export SNPPOSITIONS="SNP.positions"
+export COUNTSNPS="COUNT_SNPs"
 
 export KMERSALLPREFIX="kmers_all"
 export UNSORTEDKMERSPREFIX="unsortedkmers"
@@ -865,7 +866,7 @@ export ALLSNPSSORTEDLABELED="all_SNPs_sorted_labelLoci"
 
 # Create a unique number for each distinct loci, separates loci by blank line.
 # Outputs to all_SNPs_sorted_labelLoci
-"${NUMBERSNPS}" < "${ALLSNPSSORTED}" > "${ALLSNPSSORTEDLABELED}"
+"${NUMBERSNPS}" "${COUNTSNPS}" < "${ALLSNPSSORTED}" > "${ALLSNPSSORTEDLABELED}"
 
 export SNPSALLOUTPUT="SNPs_all"
 
@@ -1185,7 +1186,7 @@ mv "${SNPSALLPARSIMONYTREE}" "${TEMPORARYFILES}/" || true
 
 
 # If we are missing expected results, warn the user.
-if [ ! -s SNPs_all -o ! -s tree.parsimony.tre -o ! -s tree_AlleleCounts.parsimony.tre -o ! -s unresolved_clusters -o ! -s COUNT_SNPs ]
+if [ ! -s SNPs_all -o ! -s tree.parsimony.tre -o ! -s tree_AlleleCounts.parsimony.tre -o ! -s unresolved_clusters -o ! -s "${COUNTSNPS}" ]
 then
     echo "WARNING: The output directory is missing some expected files.  You may"
     echo "consider re-running kSNP with -debug to get more useful details."
