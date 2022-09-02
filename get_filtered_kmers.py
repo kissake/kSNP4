@@ -163,6 +163,30 @@ def convertInputFiles(inputFileList, mergeFastaReadsFilename):
         subprocess.run([mergeFastaReadsFilename, record['inputFile']], stdout=outputFileHandle)
         outputFileHandle.close()
 
+
+def runJellyfishDump(nextFile, kmers, jellyfishFilename, freqcheckFilename):
+    processes = []
+    allPendingProcesses = []
+    if os.access(nextFile, mode=os.F_OK):
+
+        jellyfishDump = subprocess.Popen([
+            jellyfishFilename, 'dump', '-c', nextFile], stdout = subprocess.PIPE)
+
+        freqCheck = subprocess.Popen([
+            freqcheckFilename, kmers, ], stdin=jellyfishDump.stdout, stdout=subprocess.PIPE)
+
+        # Permit SIGPIPE to reach jellyfish dump process by ensuring that we don't hold an open
+        # file handle to the pipe in question.
+        jellyfishDump.stdout.close() 
+
+        processes = freqCheck
+        allPendingProcesses = ([jellyfishDump, freqCheck])
+
+        # Join STDOUT of jellyfishDump to STDIN of freqCheck, and capture STDOUT of freqCheck.
+
+    return ( processes, allPendingProcesses )
+        
+
 def processJellyfishDumps(inputFiles, jellyfishFilename, freqcheckFilename, ):
     # Now we grab frequency data from these databases.
     # Note that we run 'dump' in the background, so if there are a v. large number of input files,
@@ -173,38 +197,55 @@ def processJellyfishDumps(inputFiles, jellyfishFilename, freqcheckFilename, ):
     allPendingProcesses = []
     for file in inputFiles:
         
+        logging.debug("Looking for dump files for %s", file['genome'])
+
         nextFile = file['jellyfishDB']
+        # We may need to do a jellyfish merge in this case.  First we find the relevant filenames:
+        if os.access(nextFile, mode=os.F_OK):
+            filesToMerge = [nextFile,]
+        else:
+            filesToMerge = []
+
+                    
+        # We test the files including the .Jelly suffix, .Jelly_0, and so on.
         dbFileCount = 0
+        nextFile = file['jellyfishDB']+ '_' + str(dbFileCount)
+
+        while os.access(nextFile, mode=os.F_OK):
+            
+            filesToMerge.append(nextFile)
+                    
+            nextFile = file['jellyfishDB']+ '_' + str(dbFileCount)
+            dbFileCount = dbFileCount+1
+        
         processes = []
 
         logging.debug("Processing (dump) %s", file['jellyfishDB'])
-        
-        while os.access(nextFile, mode=os.F_OK):
 
-            if dbFileCount > 0:
-                # This will fail to detect the case where there is fsplitN.Jelly and fsplitN.Jelly_0.
-                logging.warning("WARNING: The case of multiple jellyfish dump outputs is not handled at this time.")
+
+        # First, test for and process the singular, un-suffixed jellyfish output file.
+        if len(filesToMerge) > 1:
+            # We need to merge the dumps together to get a single set of counts
+            logging.debug("Merging multiple jellyfish dumps: %s", filesToMerge)
+                
+            command=[ jellyfishFilename, 'merge', '-o', file['jellyfishDB'],]
+            command.extend(filesToMerge)
+            subprocess.run(command)
+            dumpfile = file['jellyfishDB']
+            
+        else:
+            dumpfile = filesToMerge[0]
+
+        logging.debug("Running jellyfish dump on %s (1/1 jellyfish dump for genome %s)", dumpfile, file['genome'])
+
+        (newProcesses, newPendingProcesses) = runJellyfishDump(dumpfile, file['kmers'], jellyfishFilename, freqcheckFilename)
+
+        processes.append(newProcesses)
+        allPendingProcesses.extend(newPendingProcesses)
+
 
             
-            jellyfishDump = subprocess.Popen([
-                jellyfishFilename, 'dump', '-c', nextFile], stdout = subprocess.PIPE)
-            
-            freqCheck = subprocess.Popen([
-                freqcheckFilename, file['kmers'], ], stdin=jellyfishDump.stdout, stdout=subprocess.PIPE)
 
-            # Permit SIGPIPE to reach jellyfish dump process by ensuring that we don't hold an open
-            # file handle to the pipe in question.
-            jellyfishDump.stdout.close() 
-
-            processes.append(freqCheck)
-            allPendingProcesses.extend([jellyfishDump, freqCheck])
-
-            # Join STDOUT of jellyfishDump to STDIN of freqCheck, and capture STDOUT of freqCheck.
-
-            # The intent is that nextFile always be 1 behind dbFileCount so we can hit the un-suffixed file
-            # first and catch up with _0.
-            nextFile = file['jellyfishDB']+ '_' + str(dbFileCount)
-            dbFileCount = dbFileCount+1
 
         file['freqProcesses'] = processes
 
@@ -235,6 +276,7 @@ def processJellyfishDumps(inputFiles, jellyfishFilename, freqcheckFilename, ):
         # This is the interface between the inline_freq_check.py program and this one.
         # Currently space separated integers.  The first is the minFreq, and the second
         # is the total number of kmers.
+        logging.debug("processes: %s\nallPendingProcesses: %s", processes, allPendingProcesses)
         statistics = processes.pop().communicate()[0].split(b" ")
         
         file['minFreq'] = int(statistics[0])
@@ -265,26 +307,13 @@ def generateJellyfishDumps(inputFileList, jellyfishFilename, k, hashSize, numCPU
         logging.debug("Processing (jellyfish) %s", file['jellyfishDB'])
 
         # Note that this output is e.g. file0.Jelly, or file0.Jelly_<n>
+        # Also note that we wait for each jellyfish count to finish before
+        # starting the next.
+        logging.debug("Running jellyfish: %s", " ".join([jellyfishFilename, 'count', '-C', '-o', file['jellyfishDB'], '-m', k, '-s', hashSize, '-t', numCPUs, file['tempFile'] ]))
         subprocess.run([
             jellyfishFilename,
             'count', '-C', '-o', file['jellyfishDB'], '-m', k, '-s', hashSize, '-t', numCPUs, file['tempFile'] ])
 
-    # Determine if we need to do any merging by looking for the clearest sign of a second dump file: <output>_1.
-    logging.debug("Checking for multiple jellyfish output files; this is new; previously we just processed each individual output file.")
-    for file in inputFileList:
-        if os.access(file['jellyfishDB'] + '_1', mode=os.F_OK):
-            # At least two dump files exist, they need to be merged
-            logging.warning("WARNING: If this file has a min_kmer_frequency greater than 1, there is the chance to miss some SNPs.")
-            logging.warning("WARNING: It will probably work okay if you comment out this following 'raise', but see comments in source.")
-
-            # NOTE NOTE NOTE:  Ignoring this is technically WRONG in the case where there is more than one
-            # output file.  Failure mode is:
-            #  - raw reads (so our min_kmer_freq is higher than 1)
-            #  - kmer spread between multiple files and not notably well represented.
-            # Correct behavior is to jellyfish merge.  FIXME TODO XXX - JN
-            # I think the right thing to do for now is to output a warning to the user.
-            
-            raise ValueError ("Jellyfish output overflowed.")
 
 def cacheFileName(checksum, k):
     return (checksum + "." + str(k))
