@@ -45,26 +45,17 @@ perl = add_paths3 annotate_SNPs_from_genbankFiles3 \
        subset_SNPs_all3 tree_nodes3
 
 # All of the perl binaries that need to be created.
-perlbin = binaries/add_paths3 binaries/annotate_SNPs_from_genbankFiles3 \
-	  binaries/CheckFileNames binaries/core_SNPs3 \
-	  binaries/delete_allele_conflicts3 binaries/distance_tree3 \
-	  binaries/find_allele3 \
-	  binaries/find_unresolved_clusters3 binaries/force_binary_tree \
-	  binaries/genome_names3 binaries/get_genbank_file3 \
-	  binaries/get_quantile3 \
-	  binaries/labelTree_AlleleCount-new3  \
-	  binaries/label_tree_nodes3 binaries/LE2Unix \
-	  binaries/merge_fasta_reads3 \
-	  binaries/NodeChiSquare2tree3 \
-	  binaries/parallel_commands3 binaries/parse_mummer4kSNP3 \
-	  binaries/parse_protein_annotation_counts3 binaries/parse_SNPs2VCF3 \
-	  binaries/pick_snps_from_kmer_genome_counts3 binaries/rc_kmer_freqs3 \
-	  binaries/rename_from_table3 binaries/renumber_probes3 \
-	  binaries/SNP_matrix2dist_matrix3 \
-	  binaries/SNPs2fastaQuery3 binaries/SNPs2nodes-new3 \
-	  binaries/subset_mer_list3 \
-	  binaries/subset_mers3 binaries/subset_SNPs_all3 \
-	  binaries/tree_nodes3
+perlbin = binaries/add_paths3 binaries/CheckFileNames binaries/core_SNPs3 \
+	binaries/distance_tree3 binaries/force_binary_tree binaries/genome_names3 \
+	binaries/labelTree_AlleleCount-new3 binaries/label_tree_nodes3 binaries/LE2Unix \
+	binaries/MakeKSNP4infile binaries/merge_fasta_reads3 \
+	binaries/NodeChiSquare2tree3 binaries/NodeChiSquare2tree4 \
+	binaries/parse_mummer4kSNP3 binaries/parse_SNPs2VCF3 binaries/rc_kmer_freqs3 \
+	binaries/renumber_probes3 binaries/rmNodeNamesFromTree4 \
+	binaries/SNPs2fastaQuery3 binaries/SNPs2nodes-new3 \
+	binaries/SNPs_all_2_fasta_matrix3 binaries/subset_SNPs_all3 \
+	binaries/tree_nodes3 binaries/find_unresolved_clusters3 \
+	binaries/rename_from_table3
 
 # Ideally we can rename this, or rename all of the other perl scripts to match
 # the .pl suffix for this one.  Consistency is the name of the game and
@@ -77,7 +68,28 @@ pythonbin = binaries/FTPgenomes binaries/number_SNPs_all3 binaries/ParAnn binari
 	binaries/find_snps binaries/get_filtered_kmers binaries/guessPartition \
 	binaries/inline_frequency_check binaries/partitionKmers binaries/Kchooser4
 
-dependencies = FastTreeMP parsimonator mummer consense jellyfish
+# Define the pythonbin target as the compiled binary for ever .py file,
+# stored in the binaries directory
+python = $(wildcard *.py)
+pythonbin = $(patsubst %.py,binaries/%,$(wildcard *.py))
+
+# Likewise perlbin
+perl = $(wildcard *.pl)
+perlbin = $(patsubst %.pl,binaries/%,$(wildcard *.pl))
+
+
+shellscripts = binaries/kSNP4 binaries/buildtree binaries/extractNthLocus4 binaries/selectNodeAnnotations4
+
+
+dependencies = binaries/FastTreeMP binaries/parsimonator binaries/mummer binaries/consense binaries/jellyfish
+
+
+
+#################################################################
+# Which targets are "phony" and should be built even if the
+# target exists?
+#################################################################
+.PHONY: clean distclean all testrun
 
 
 #################################################################
@@ -85,6 +97,18 @@ dependencies = FastTreeMP parsimonator mummer consense jellyfish
 #################################################################
 
 all: $(all_products)
+
+
+
+#################################################################
+# Other build target
+#################################################################
+
+
+testrun: RunExamples.sh deps Examples
+	PATH=`pwd`/binaries:"${PATH}" ./RunExamples.sh
+
+
 
 #################################################################
 #################################################################
@@ -109,14 +133,14 @@ kSNP$(ver)_Source.zip: kSNP$(ver).zip
 # Build a different zip file depending on whether we are using a monolithic
 # perl binary.
 ifeq ($(perlmonolith),true)
-$(packagedir): $(docs) kSNP$(ver) $(perlbin) binaries/perlscripts $(pythonbin) $(dependencies)
+$(packagedir): $(docs) kSNP$(ver) $(perlbin) binaries/perlscripts $(pythonbin) $(shellscripts) $(dependencies)
 	mkdir -p $(packagedir)
 	mkdir -p $(binarydir)
 	for doc in $(docs) ; do cp $$doc $(packagedir) ; done
 	for bin in $(perlbin) $(pythonbin) binaries/perlscripts kSNP$(ver) ; do cp $$bin $(binarydir) ; done
 	for dep in $(dependencies) ; do cp $$dep $(binarydir) ; done
 else
-$(packagedir): $(docs) kSNP$(ver) $(perlbin) $(pythonbin) $(dependencies)
+$(packagedir): $(docs) kSNP$(ver) $(perlbin) $(pythonbin) $(shellscripts) $(dependencies)
 	mkdir -p $(packagedir)
 	mkdir -p $(binarydir)
 	for doc in $(docs) ; do cp $$doc $(packagedir) ; done
@@ -150,13 +174,14 @@ ifeq ($(perlmonolith),true)
 # which one to execute based on the name used when calling it (thus the
 # symbolic links)
 binaries/perlscripts $(perlbin) &: $(perl)
+	echo "NERF"
 	pp -o binaries/perlscripts $(perl)
 	for script in $(perl); do ln -s perlscripts binaries/$$script; done
 
 else
 
 # Build perl scripts into binaries using pp, a tool from CPAN in the PAR::Packer module
-$(perlbin): binaries/%: %
+binaries/%: %.pl
 	pp -o $@ $<
 
 endif
@@ -168,12 +193,20 @@ endif
 # Build python binaries using pyinstaller.  Wrapped with a temporary directory
 # creation and removal to avoid cluttering the working directory.  May be more
 # efficient to create it and re-use it?
-$(pythonbin):
+binaries/%: %.py
 	pybuilddir=`mktemp -d` ; \
 		   echo "Build dir: $$pybuilddir" ; \
-		   pyinstaller --workpath "$$pybuilddir" --specpath "$$pybuilddir" --clean --onefile --distpath binaries $(@F).py ; \
+		   pyinstaller --workpath "$$pybuilddir" --specpath "$$pybuilddir" --clean --onefile --distpath binaries $< ; \
 		   echo "Removing build directory: $$pybuilddir" ;\
 		   rm -r "$$pybuilddir"
+
+
+#################################################################
+# Shell
+#################################################################
+
+$(shellscripts): $(@F)
+	cp $(@F) $@
 
 
 
@@ -186,9 +219,6 @@ $(pythonbin):
 binaries/%.pdf : %.pdf
 	cp "$<" "$@"
 
-
-testrun: RunExamples.sh deps
-	PATH=`pwd`:"${PATH}" RunExamples.sh
 
 
 #################################################################
@@ -207,7 +237,7 @@ deps: $(dependencies)
 
 # FastTreeMP
 # See: http://www.microbesonline.org/fasttree/
-FastTreeMP: FastTree.c
+binaries/FastTreeMP: FastTree.c
 	gcc -DOPENMP -fopenmp -O3 -finline-functions -funroll-loops -Wall -o $@ $< -lm
 
 FastTree.c:
@@ -224,12 +254,12 @@ FastTree.c:
 # More info available here: https://evolution.genetics.washington.edu/phylip.html
 # See testing here: https://evolution.gs.washington.edu/phylip/doc/consense.html
 consense_build = phylip-3.697
-consense: phylip-3.697.tar.gz
+binaries/consense: phylip-3.697.tar.gz
 	tar -xzf $<
 	# Patch consense to permit build and to permit longer (200 char in this case) names.
 	patch -p 0 < consense.patch
 	cd $(consense_build)/src && make -f Makefile.unx consense
-	cp $(consense_build)/src/consense .
+	cp $(consense_build)/src/consense binaries/
 
 phylip-3.697.tar.gz:
 	curl -L "http://evolution.gs.washington.edu/phylip/download/phylip-3.697.tar.gz" > $@
@@ -237,11 +267,11 @@ phylip-3.697.tar.gz:
 
 # Mummer
 mummer_build = mummer-4.0.0rc1
-mummer: mummer-src.tgz
+binaries/mummer: mummer-src.tgz
 	tar -xzf $<
 	cd $(mummer_build) && autoreconf -fi && ./configure && make mummer
-	cp $(mummer_build)/.libs/mummer ./mummer-bin
-	cp $(mummer_build)/.libs/libumdmummer.so.0.0.0 ./libumdmummer.so.0
+	cp $(mummer_build)/.libs/mummer binaries/mummer-bin
+	cp $(mummer_build)/.libs/libumdmummer.so.0.0.0 binaries/libumdmummer.so.0
 	echo '#!/bin/bash\nLD_LIBRARY_PATH=`dirname "$${0}"`:$${LD_LIBRARY_PATH} `dirname "$${0}"`/mummer-bin "$${@}"' > "$@"
 	chmod a+x "$@"
 	# This is a release candidate, guessing that's why the build doesn't make the standalone binary?
@@ -251,10 +281,10 @@ mummer-src.tgz:
 
 # Parsimonator
 parsimonator_build=Parsimonator-1.0.2-master
-parsimonator: parsimonator-src.zip
+binaries/parsimonator: parsimonator-src.zip
 	unzip $<
 	cd $(parsimonator_build)/ && make -f Makefile.gcc
-	cp $(parsimonator_build)/parsimonator .
+	cp $(parsimonator_build)/parsimonator binaries/
 	rm -r $(parsimonator_build)
 
 parsimonator-src.zip:
@@ -262,22 +292,19 @@ parsimonator-src.zip:
 
 
 jellyfish_build=Jellyfish-2.3.0
-jellyfish: jellyfish-src.tgz
+binaries/jellyfish: jellyfish-src.tgz
 	tar -xf $<
-	cd $(jellyfish_build)
-	autoreconf -i
-	./configure
-	make -j 4
+	cd $(jellyfish_build) && autoreconf -i && ./configure && make -j 4
+	cp $(jellyfish_build)/bin/jellyfish binaries/
 
 
 jellyfish-src.tgz:
 	curl -L "https://github.com/gmarcais/Jellyfish/archive/refs/tags/v2.3.0.tar.gz" >$@
 
 
-
-
 Examples: Examples.zip
 	unzip "$<"
+	rm -r __MACOSX/
 
 Examples.zip:
 	curl -L "https://downloads.sourceforge.net/project/ksnp/Examples.zip" >$@
