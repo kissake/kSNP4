@@ -379,4 +379,4 @@ if __name__ == "__main__":
     else: # We didn't find any uncached files
         logging.info('Cached data found for all %s input files, using cached data only.', len(inputFiles))
         
-    exit(0)
+    sys.exit(0)
