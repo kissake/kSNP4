@@ -73,7 +73,7 @@ def getMinKmerCoverage(inFile, outFile):
         # Add the ones we avoided adding before.
         
         # Add all of the 1 values we avoided adding before.
-        countsList = nonOnesList.extend([1]*ounesCount)
+        countsList = nonOnesList.extend([1]*onesCount)
 
         # Math on countslist        
         mean = statistics.mean(countsList)
