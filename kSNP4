@@ -596,17 +596,17 @@ PARTITIONS='partitions.txt'
 PARTITIONSUFFIX='.part'
 
 SNPFASTAS='.SNPs.fasta'
-date -Ins
+date
 
 "${GUESSPARTITION}" --debug --input kmers.fsplit0 "${NUMPARTS}" > "${PARTITIONS}"
 
-date -Ins
+date
 
 cut -f 1 "${FILE2GENOME}" |
     sed -e "s/^/${KMERSPREFIX}./" |
     xargs -t -n 1 -P "${NUM_CPUS}" "${PARTITIONKMERS}" --debug --partition "${PARTITIONS}" --suffix "${PARTITIONSUFFIX}"
 
-date -Ins
+date
 
 
 echo "Finished partitioning new kmer files."
@@ -616,6 +616,7 @@ echo "Finished partitioning new kmer files."
 SNPS_ALL_MERS="input_SNPs.mers"
 SNPS_ALL_DATA="input_SNPs"
 
+NUMGENOMES=`wc -l "${FILE2GENOME}" | awk '{print $1}'`
 
 if [ -e "${SNPS_ALL_INPUT}" ]   # If the SNPs_all argument points to a file that exists... (cached answers)
 then
@@ -644,60 +645,46 @@ then
     
     done
     # Previously created fasta files out of this... why?
-    date -Ins
+    date
 
-    # This block of code uses a little cleverness.
-    # It runs the code against all input data, partition by partition, and
-    # in parallel.  It does this by first having xargs edit the commandline
-    # to swap the current partition label in for the substitution string, and
-    # then having the shell(?) glob the resulting string.
-    #
-    # Other solutions are possible, including by using other means to ensure
-    # that the input consists of the SNPs_all partition first, then all of 
-    # the kmer files for that partition, on one line, followed by similar
-    # lines for other partitions, then having xargs work line-by-line.
+    let GENOMEPLUSSNP="${NUMGENOMES}"+1
 
-    COUNT=0
-    while [ "${COUNT}" -lt "${NUMPARTS}" ]
-    do
-	# This is the SNP file, an argument to --snps-all
-	find . -name "${SNPS_ALL_DATA}${PARTITIONSUFFIX}${COUNT}" -printf "%f "
-	# And these are the kmer files, regular arguments, terminated with a newline.
-	find . -name "${KMERSPREFIX}*${PARTITIONSUFFIX}${COUNT}" -printf "%f " | sed -e 's/ $/\n/'
-	let COUNT="${COUNT}"+1
-	
-    done | xargs -t -L 1 -P "${NUM_CPUS}" "${FINDSNPS}" --debug --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}" --snps-all
+    # Generate the list of files to operate on using awk.
+    
+    awk "BEGIN{ 
+	    OFS=\"\" ; 
+	    kmer=\"${KMERSPREFIX}.${SPLITNAME}\" ; 
+	    part=\"${PARTITIONSUFFIX}\" ;
+            snps=\"${SNPS_ALL_DATA}\" ; 
+	    for (p = 0; p < ${NUMPARTS} ; p++) {
+	    	print snps,part,p
+		for (g = 0; g < ${NUMGENOMES} ; g++) 
+		    print kmer,g,part,p;
+	    }
+     }" | xargs -t -n "${GENOMEPLUSSNP}" -P "${NUM_CPUS}" "${FINDSNPS}" --debug --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}" --snps-all
 
-    date -Ins
+    date
 
     echo "Found SNPs and merged with existing SNPs."
 
 else
     # This is the default case where we don't have a previous SNPS_ALL_INPUT file provided.
-    date -Ins
+    date
 
 
-    # This block of code uses a little cleverness.
-    # It runs the code against all input data, partition by partition, and
-    # in parallel.  It does this by first having xargs edit the commandline
-    # to swap the current partition label in for the substitution string, and
-    # then having the shell(?) glob the resulting string.
-    #
-    # Other solutions are possible, including by using other means to ensure
-    # that the input consists of  all of the kmer files for that partition on
-    # one line, followed by similar lines for other partitions, then having
-    # xargs work line-by-line.
-    
-    COUNT=0
-    while [ "${COUNT}" -lt "${NUMPARTS}" ]
-    do
-	# These are the kmer files, regular arguments, terminated with a newline.
-	find . -name "${KMERSPREFIX}*${PARTITIONSUFFIX}${COUNT}" -printf "%f " | sed -e 's/ $/\n/'
-	let COUNT="${COUNT}"+1
-	
-    done | xargs -t -L 1 -P "${NUM_CPUS}" "${FINDSNPS}" --debug --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}"
+    # Generate the list of files to operate on using awk.
 
-    date -Ins
+    awk "BEGIN{ 
+	    OFS=\"\" ; 
+	    kmer=\"${KMERSPREFIX}.${SPLITNAME}\" ; 
+	    part=\"${PARTITIONSUFFIX}\" ;
+	    for (p = 0; p < ${NUMPARTS} ; p++) {
+		for (g = 0; g < ${NUMGENOMES} ; g++) 
+		    print kmer,g,part,p;
+	    }
+     }" | xargs -t -n "${NUMGENOMES}" -P "${NUM_CPUS}" "${FINDSNPS}" --debug --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}"
+
+    date
     
     echo "Found SNPs"
 fi
@@ -712,7 +699,7 @@ do
 
 done
 
-date -Ins
+date
 
 
 echo "Re-combined SNP fasta files for input into mummer"
@@ -725,16 +712,16 @@ do
     KMERS="${KMERSPREFIX}.${FILE}"
 
     # Note that these can be done in parallel, but I'd rather not manage the processes, and it should be fast.
-    cat "${KMERS}"*"${SNPSPREFIX}" | sed -e "s/FILENAME/${FILE}/" > "${KMERS}.${SNPSPREFIX}"
+    cat "${KMERS}${PARTITIONSUFFIX}"*"${SNPSPREFIX}" | sed -e "s/FILENAME/${FILE}/" > "${KMERS}.${SNPSPREFIX}"
 
 done
 
 
-date -Ins
+date
 
 
 echo "Re-combined SNP fasta files for input into mummer"
-date -Ins
+date
 
 
 
@@ -753,7 +740,7 @@ date -Ins
 
 #    cat "${KMERS}"*"${SNPFASTAS}" > "${KMERS}${SNPFASTAS}"
 
-date -Ins
+date
 
 
 
@@ -806,7 +793,7 @@ then
 	# "${PARALLELCOMMANDS}" "${NUM_CPUS}" "${MUMMERCMDS}"
 	# "${PARALLELCOMMANDS}" "${NUM_CPUS}" "${PARSEMUMMERCMDS}"
 
-	date -Ins
+	date
 	echo "Finished finding SNP positions in finished genomes using mummer."
 fi
 
