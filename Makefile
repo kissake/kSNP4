@@ -28,50 +28,13 @@ binarydir = $(packagedir)/kSNP$(ver)
 
 all_products = kSNP$(ver)_Source.zip kSNP$(ver).zip Examples.zip
 
-# All of the perl scripts.  Used to generate binaries in the perlmonolith case.
-perl = add_paths3 annotate_SNPs_from_genbankFiles3 \
-       CheckFileNames core_SNPs3 delete_allele_conflicts3 distance_tree3 \
-       find_allele3 \
-       find_unresolved_clusters3 force_binary_tree genome_names3 \
-       get_genbank_file3 get_quantile3 labelTree_AlleleCount-new3 \
-       label_tree_nodes3 LE2Unix \
-       merge_fasta_reads3 NodeChiSquare2tree3 \
-       parallel_commands3 \
-       parse_mummer4kSNP3 parse_protein_annotation_counts3 parse_SNPs2VCF3 \
-       pick_snps_from_kmer_genome_counts3 rc_kmer_freqs3 \
-       rename_from_table3 renumber_probes3 \
-       SNP_matrix2dist_matrix3 SNPs2fastaQuery3 SNPs2nodes-new3 \
-       subset_mer_list3 subset_mers3 \
-       subset_SNPs_all3 tree_nodes3
-
-# All of the perl binaries that need to be created.
-perlbin = binaries/add_paths3 binaries/CheckFileNames binaries/core_SNPs3 \
-	binaries/distance_tree3 binaries/force_binary_tree binaries/genome_names3 \
-	binaries/labelTree_AlleleCount-new3 binaries/label_tree_nodes3 binaries/LE2Unix \
-	binaries/MakeKSNP4infile binaries/merge_fasta_reads3 \
-	binaries/NodeChiSquare2tree3 binaries/NodeChiSquare2tree4 \
-	binaries/parse_mummer4kSNP3 binaries/parse_SNPs2VCF3 binaries/rc_kmer_freqs3 \
-	binaries/renumber_probes3 binaries/rmNodeNamesFromTree4 \
-	binaries/SNPs2fastaQuery3 binaries/SNPs2nodes-new3 \
-	binaries/SNPs_all_2_fasta_matrix3 binaries/subset_SNPs_all3 \
-	binaries/tree_nodes3 binaries/find_unresolved_clusters3 \
-	binaries/rename_from_table3
-
-# Ideally we can rename this, or rename all of the other perl scripts to match
-# the .pl suffix for this one.  Consistency is the name of the game and
-# permits us to treat them all the same.
-perlpl = SNPs_all_2_fasta_matrix3.pl
-
-# Names of the python binaries that need to be created.  The source files are
-# determined from these filenames.
-pythonbin = binaries/FTPgenomes binaries/number_SNPs_all3 binaries/ParAnn binaries/parse_assembly_summary \
-	binaries/find_snps binaries/get_filtered_kmers binaries/guessPartition \
-	binaries/inline_frequency_check binaries/partitionKmers binaries/Kchooser4
 
 # Define the pythonbin target as the compiled binary for ever .py file,
 # stored in the binaries directory
 python = $(wildcard *.py)
 pythonbin = $(patsubst %.py,binaries/%,$(wildcard *.py))
+pythonlib = ksnpConfig.py ksnpCache.py
+
 
 # Likewise perlbin
 perl = $(wildcard *.pl)
@@ -89,7 +52,7 @@ dependencies = binaries/FastTreeMP binaries/parsimonator binaries/mummer binarie
 # Which targets are "phony" and should be built even if the
 # target exists?
 #################################################################
-.PHONY: clean distclean all testrun
+.PHONY: clean distclean all testrun testclean
 
 
 #################################################################
@@ -107,6 +70,9 @@ all: $(all_products)
 
 testrun: RunExamples.sh Examples all
 	PATH=`pwd`/binaries:"${PATH}" ./RunExamples.sh
+
+testclean:
+	rm -r tmp.*
 
 
 
@@ -190,10 +156,14 @@ endif
 # Python
 #################################################################
 
+# Exception for ksnpConfig.py, which we don't need to build yet.
+binaries/ksnpConfig: ksnpConfig.py
+	echo "Skipping for now."
+
 # Build python binaries using pyinstaller.  Wrapped with a temporary directory
 # creation and removal to avoid cluttering the working directory.  May be more
 # efficient to create it and re-use it?
-binaries/%: %.py
+binaries/%: %.py $(pythonlib)
 	pybuilddir=`mktemp -d` ; \
 		   echo "Build dir: $$pybuilddir" ; \
 		   pyinstaller --workpath "$$pybuilddir" --specpath "$$pybuilddir" --clean --onefile --distpath binaries $< ; \
@@ -205,8 +175,8 @@ binaries/%: %.py
 # Shell
 #################################################################
 
-$(shellscripts): $(@F)
-	cp $(@F) $@
+$(shellscripts): binaries/%: %
+	cp $< $@
 
 
 
