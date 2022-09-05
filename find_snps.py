@@ -71,6 +71,8 @@ and also (with the overall list of SNPs):
     kcache.addCacheOptions(parser)
 
     parser.add_argument('--debug', action='store_true', help='Output diagnostic data to the screen using STDERR')
+    parser.add_argument('--info', action='store_true', help='Output status information on STDERR', default=True)
+    parser.add_argument('--quiet', action='store_true', help='Silence debug and other messages. (warnings only)')
 
     if override is None:
         return parser.parse_args()
@@ -290,9 +292,9 @@ def getK(genomeList):
 def findSNPs(genomeList, fastaSuffix, snpSuffix, snpsAll=None):
     k = getK(genomeList)
 
-    logging.info('Looking for SNPs in %s genomes', len(genomeList))
+    logging.debug('Looking for SNPs in %s genomes', len(genomeList))
     (thisBucket, genomeBits) = fillBucket(genomeList, k)
-    logging.info('Found %s loci in the %s genomes', len(thisBucket), len(genomeList))
+    logging.debug('Found %s loci in the %s genomes', len(thisBucket), len(genomeList))
 
     if snpsAll is not None:
         logging.info("snpsAll: %s -> Therefore we are going to load SNPs from that file", snpsAll)
@@ -347,8 +349,11 @@ if __name__ == "__main__":
 
     if options.debug:
         logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+    elif options.info:
+        logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
     else:
-        logging.basicConfig(format='%(levelname)s:%(message)s')
+        logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.WARN)
+            
 
     logging.debug('Commandline options, as parsed: %s', str(options))
 

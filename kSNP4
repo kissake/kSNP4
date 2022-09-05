@@ -598,13 +598,13 @@ PARTITIONSUFFIX='.part'
 SNPFASTAS='.SNPs.fasta'
 date
 
-"${GUESSPARTITION}" --debug --input kmers.fsplit0 "${NUMPARTS}" > "${PARTITIONS}"
+"${GUESSPARTITION}" --input kmers.fsplit0 "${NUMPARTS}" > "${PARTITIONS}"
 
 date
 
 cut -f 1 "${FILE2GENOME}" |
     sed -e "s/^/${KMERSPREFIX}./" |
-    xargs -t -n 1 -P "${NUM_CPUS}" "${PARTITIONKMERS}" --debug --partition "${PARTITIONS}" --suffix "${PARTITIONSUFFIX}"
+    xargs -t -n 1 -P "${NUM_CPUS}" "${PARTITIONKMERS}" --partition "${PARTITIONS}" --suffix "${PARTITIONSUFFIX}"
 
 date
 
@@ -629,7 +629,7 @@ then
     
     # Partition SNPs_all file:
     # Partition the data using existing partitions.
-    "${PARTITIONKMERS}" --debug --col 2 --partition "${PARTITIONS}" --suffix "${PARTITIONSUFFIX}" "${SNPS_ALL_DATA}"
+    "${PARTITIONKMERS}" --col 2 --partition "${PARTITIONS}" --suffix "${PARTITIONSUFFIX}" "${SNPS_ALL_DATA}"
 
     # Previously created fasta files out of this... why?
     date
@@ -650,7 +650,7 @@ then
 		for (g = 0; g < ${NUMGENOMES} ; g++) 
 		    print kmer,g,part,p;
 	    }
-     }" | xargs -t -n "${GENOMEPLUSSNP}" -P "${NUM_CPUS}" "${FINDSNPS}" --debug --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}" --snps-all
+     }" | xargs -t -n "${GENOMEPLUSSNP}" -P "${NUM_CPUS}" "${FINDSNPS}" --info --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}" --snps-all
 
     date
 
@@ -672,7 +672,7 @@ else
 		for (g = 0; g < ${NUMGENOMES} ; g++) 
 		    print kmer,g,part,p;
 	    }
-     }" | xargs -t -n "${NUMGENOMES}" -P "${NUM_CPUS}" "${FINDSNPS}" --debug --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}"
+     }" | xargs -t -n "${NUMGENOMES}" -P "${NUM_CPUS}" "${FINDSNPS}" --info --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}"
 
     date
     
