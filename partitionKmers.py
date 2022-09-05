@@ -20,6 +20,7 @@ def getPartitionKmersArgs( override = None ):
     
     parser.add_argument('--partition', help='The file containing (one-per-line) the kmer prefix to use as the divider between files', default=sys.stdin)
     parser.add_argument('--suffix', help='The suffix to use before the number indicating which part is being output.', default='.part')
+    parser.add_argument('--col', help='The (whitespace separated) column where kmers are to be found.  Data will be partitioned based on the value of this column.', default=1)
     parser.add_argument('kmers', metavar='kmerFile', nargs='+', help='A list of kmers to be filtered into multiple partitins (probably for multiprocessing)')
 
     parser.add_argument('--debug', action='store_true', help='Output diagnostic data to the screen using STDERR')
@@ -48,6 +49,9 @@ if __name__ == '__main__':
     bufferSize = 32 * 1024
 
     fileSuffix = options.suffix
+
+    # People number lists starting at 1, Python numbers them starting at zero.
+    searchColumn = int(options.col) - 1
 
 
     if options.partition == sys.stdin:
@@ -82,10 +86,17 @@ if __name__ == '__main__':
         block = input.readlines(bufferSize)
         while len(block) > 0:
             for line in block:
+                # Extract the kmer from the specified column (or the first, if not specified)
+                elements = line.split()
+                if len(elements) > searchColumn:
+                    kmer = elements[searchColumn]
+                else:
+                    # This was a blank or otherwise insufficiently long line.
+                    continue
                 # This line is... obscure looking.  It will write the line to
                 # the correct output file based on its content and the partitions
                 # that were input.
-                outFiles[partitions[bisect.bisect_right(partitions,line)]].write(line)
+                outFiles[partitions[bisect.bisect_right(partitions,kmer)]].write(line)
             block = input.readlines(bufferSize)
 
 
