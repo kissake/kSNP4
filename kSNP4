@@ -613,7 +613,6 @@ echo "Finished partitioning new kmer files."
 
 
 
-SNPS_ALL_MERS="input_SNPs.mers"
 SNPS_ALL_DATA="input_SNPs"
 
 NUMGENOMES=`wc -l "${FILE2GENOME}" | awk '{print $1}'`
@@ -626,24 +625,12 @@ then
     echo "Using existing SNPs from ${SNPS_ALL_INPUT} file"
     date
 
+    cp "${SNPS_ALL_INPUT}" "${SNPS_ALL_DATA}"
+    
     # Partition SNPs_all file:
-    
-    # Copy the second column to the first to use as an index for partitioning, remove blank lines.
-    awk '/./{print $2 "\t" $0 ;}' < "${SNPS_ALL_INPUT}" > "${SNPS_ALL_MERS}"
-
     # Partition the data using existing partitions.
-    "${PARTITIONKMERS}" --debug --partition "${PARTITIONS}" --suffix "${PARTITIONSUFFIX}" "${SNPS_ALL_MERS}"
-    rm "${SNPS_ALL_MERS}"
+    "${PARTITIONKMERS}" --debug --col 2 --partition "${PARTITIONS}" --suffix "${PARTITIONSUFFIX}" "${SNPS_ALL_DATA}"
 
-    # Then restore the partitioned data to the SNPs_all format for parsing by find_snps
-    COUNT=0
-    while [ "${COUNT}" -lt "${NUMPARTS}" ]
-    do
-	sed -e 's/^[^\t]*\t//' < "${SNPS_ALL_MERS}${PARTITIONSUFFIX}${COUNT}" > "${SNPS_ALL_DATA}${PARTITIONSUFFIX}${COUNT}"
-	rm "${SNPS_ALL_MERS}${PARTITIONSUFFIX}${COUNT}"
-	let COUNT="${COUNT}"+1
-    
-    done
     # Previously created fasta files out of this... why?
     date
 
