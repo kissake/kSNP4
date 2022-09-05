@@ -649,7 +649,9 @@ then
 
     let GENOMEPLUSSNP="${NUMGENOMES}"+1
 
-    # Generate the list of files to operate on using awk.
+    # Generate the list of files to operate on using awk;  We want to operate on all of the files
+    # for a given partition (e.g. input_SNPs.mers.part0 and kmers*.part0) together so that we can
+    # find the SNPs between genomes.
     
     awk "BEGIN{ 
 	    OFS=\"\" ; 
@@ -672,7 +674,8 @@ else
     date
 
 
-    # Generate the list of files to operate on using awk.
+    # Generate the list of files to operate on using awk;  We want to operate on all of the files
+    # for a given partition (e.g. *.part0) together so that we can find the SNPs between genomes.
 
     awk "BEGIN{ 
 	    OFS=\"\" ; 
@@ -690,12 +693,14 @@ else
 fi
 
 
+# Combine all of the parts for a given genome into a single .fasta file for input into mummer.
+
 cat "${FILE2GENOME}" | while read FILE REST
 do
     KMERS="${KMERSPREFIX}.${FILE}"
 
     # Note that these can be done in parallel, but I'd rather not manage the processes, and it should be fast.
-    cat "${KMERS}"*"${SNPFASTAS}" > "${KMERS}${SNPFASTAS}"
+    cat "${KMERS}${PARTITIONSUFFIX}"*"${SNPFASTAS}" > "${KMERS}${SNPFASTAS}"
 
 done
 
@@ -707,12 +712,18 @@ date
 
 
 
+# Combine all SNPs found into a single SNPs file.
+#
+# Note that our found SNPs have the term 'FILENAME' that needs to be replaced with the
+# identifier for their particular source genome so that they can be associated correctly
+# later.
+
 cat "${FILE2GENOME}" | while read FILE REST
 do
     KMERS="${KMERSPREFIX}.${FILE}"
 
     # Note that these can be done in parallel, but I'd rather not manage the processes, and it should be fast.
-    cat "${KMERS}${PARTITIONSUFFIX}"*"${SNPSPREFIX}" | sed -e "s/FILENAME/${FILE}/" > "${KMERS}.${SNPSPREFIX}"
+    cat "${KMERS}${PARTITIONSUFFIX}"*"${SNPSPREFIX}" | sed -e "s/FILENAME/${FILE}/" >> "${KMERS}.${SNPSPREFIX}"
 
 done
 
