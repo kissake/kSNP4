@@ -63,7 +63,7 @@ def findUniqueMerFraction(Kvalue, fractionUniqueKmers,theFile):
 	subprocess.run(['jellyfish', 'count', '-C', '-o', 'output', '-s', theNumber, '-t', '3', theFile, '-m', str(Kvalue)]) 
 	numMers = 0
 	OUTFILE = open('jellyout.txt', 'w')
-	subprocess.run(['jellyfish', 'dump', 'output_0', '-c'], stdout=OUTFILE) 
+	subprocess.run(['jellyfish', 'dump', 'output', '-c'], stdout=OUTFILE) 
 	OUTFILE.close()
 	INFILE = open( 'jellyout.txt', 'r')
 	for line in INFILE:
@@ -300,7 +300,7 @@ REPORTFILE.write('\nFrom a sample of {0} unique kmers {1} are core kMers.\n'.for
 REPORTFILE.write('FCK = {0:.3f}.\n'.format(FCK))
 
 #clean up
-os.remove('output_0')
+os.remove('output')
 os.remove('theFile')
 os.remove('jellyout.txt')
 
