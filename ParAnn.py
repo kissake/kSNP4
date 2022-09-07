@@ -15,6 +15,9 @@ import re
 import time
 import resource #for determining peak memory used
 from Bio.Seq import Seq
+import Bio as Bio
+import Bio.SeqIO as SeqIO
+
 # from Bio.Alphabet import generic_dna  ## Removed from Bio module per: https://biopython.org/wiki/Alphabet
 #******************* FUNCTION DEFINITIONS *******************
 def findAA(locusSeq, SNPallele, SNPpos, start, end, strand, complement):
@@ -81,6 +84,46 @@ def getNewCodon(base,codon, readingframe, RC):
 	aa = newCodon.translate()
 
 	return(str(newCodon), str(aa))
+
+def importGenbank(genbankFile):
+        # These are the location types that we can interpret.  We don't grab joined
+        # or approximate start or end locations.
+        validFeatureLocation = Bio.SeqFeature.FeatureLocation
+        validPosition = Bio.SeqFeature.ExactPosition
+        
+        #Get accession numbers and initialize
+        gbf = open(genbankFile,'r')
+        genomes = SeqIO.parse(gbf,'genbank')
+
+        for thisGenome in genomes:
+
+                accessionId = thisGenome.id
+                RefGenomesDict[accessionId] = []
+
+                for feature in thisGenome.features:
+                        # If this is a CDS feature or RNA feature...
+                        if feature.type.find('CDS') != -1 or feature.type.find('RNA') != -1:
+                                if ( isinstance(feature.location, validFeatureLocation) and
+                                     isinstance(feature.location.start, validPosition) and
+                                     isinstance(feature.location.end, validPosition)): 
+                                        geneType = feature.type
+                                        start = int(feature.location.start)
+                                        end = int(feature.location.end)
+                                        strand = feature.location.strand
+                                        product = feature.qualifiers.get('product')
+
+                                        if strand == -1:
+                                                complement = 'T'
+                                        else:
+                                                # NOTE: There are other possibilities, including 0 or None 
+                                                complement = 'F'
+
+                                        RefGenomesDict[accessionId].append([geneType, complement, start, end, product]) 
+
+        gbf.close()
+        
+        return RefGenomesDict
+
 #********************** Main *************************
 outfileName = 'SNPs_all_annotated'
 summaryFile = 'Annotation_summary'
@@ -108,46 +151,7 @@ infoList = []
 
 
 
-#Get accession numbers and initialize
-INFILE = open(genbankFile, "r")
-for line in INFILE:
-	line = line.rstrip()
-	if line.startswith('VERSION'):
-		temp = re.split(r" +", line)
-		RefGenomesDict[temp[1]] = []
-INFILE.close()		
-
-INFILE = open(genbankFile, "r")
-for line in INFILE:
-	line = line.rstrip()
-	if line.startswith('VERSION'):
-		temp = re.split(r" +", line)
-		AccNum = temp[1]
-	elif re.search (r"CDS  ", line) or re.search (r"RNA  ", line) and re.search(r"\.\.", line): #if a coding sequence		
-		temp = re.split(r" +", line)
-		geneType = temp[1]
-		Range = temp[2]
-		if not re.search(r"[<>]",Range) and  not re.search(r"join",Range):
-			if re.search(r"complement", Range):
-				complement = 'T'
-				temp =re.split(r"[()]", Range)
-				#print(temp[1])
-				temp2 = re.split(r"\.\.",temp[1])
-				start = int(temp2[0])
-				end = int(temp2[1])
-			else:
-				complement = 'F'
-				temp = re.split(r"\.\.", Range)
-				start = int(temp[0])
-				end = int(temp[1])		
-			while not re.search(r"/product", line):
-				line = INFILE.readline()
-				line = line.rstrip()
-			temp = line.split("\"")
-			product = temp[1]
-			RefGenomesDict[AccNum].append([geneType, complement, start, end, product])
-INFILE.close()
-
+refGenomesDict = importGenbank(genbankFile)
 
 endTime = time.time()
 usedTime = endTime - startTime
