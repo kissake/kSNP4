@@ -1,0 +1,67 @@
+#!/bin/bash
+
+cat > /dev/null <<IGNOREME
+
+This is a simple script to install kSNP4 onto a computer system in a reliable,
+and repeatable way.
+
+In addition, I intend it to be possible for the user to update the links in 
+the BINDIR in bulk and automatically, e.g. if the user wishes to install more
+than one copy of kSNP.
+
+The general policy is:
+
+Put all files in PACKAGEDIR.
+Create symbolic links in BINDIR for all scripts or executables that the user is
+likely to want to use.
+Run the kSNPConfig program to get an initial configuration.
+
+IGNOREME
+######################
+######################
+#
+# VARIABLES
+#
+######################
+######################
+
+# Filename of the archive that contains the remaining scripts
+ARCHIVE=kSNP4.0.tgz
+
+# Default install paths:
+# This is the directory where distribution files will be stored.  They may be
+# referenced from other locations.
+PACKAGEDIR=/usr/local/kSNP4Pkg
+
+# This is a directory in the PATH where we will create symbolic links to the
+# executables.
+BINDIR=/usr/local/bin
+
+# Variables containing lists of files that are required for kSNP to function
+USERBINS=kSNP4 Kchooser MakeKSNP4infile extractNthLocus4 rmNodeNamesFromTree4
+ALLBINS=add_paths3 buildtree CheckFileNames checkGenbankFromNCBI consense core_SNPs3 delete_allele_conflicts4 distance_tree3 extractNthLocus4 FastTreeMP find_snps find_unresolved_clusters3 fixOldFastaHeaders force_binary_tree genome_names3 getFastaGenomes get_filtered_kmers get_genbank_file4 getGenomeDataByAccession guessPartition inline_frequency_check jellyfish Kchooser4 kSNP4 ksnp-cache ksnpCache labelTree_AlleleCount-new3 label_tree_nodes3 LE2Unix make_file2genome MakeKSNP4infile mergeFastaReads merge_fasta_reads3 mummer NodeChiSquare2tree3 NodeChiSquare2tree4 number_SNPs_all3 number_SNPs_all4 ParAnn parse_assembly_summary parse_mummer4kSNP3 parseNCBIcsv parse_SNPs2VCF3 parsimonator partitionKmers rc_kmer_freqs3 rename_from_table3 renumber_probes3 rmNodeNamesFromTree4 selectNodeAnnotations4 SNPs2fastaQuery3 SNPs2nodes-new3 SNPs_all_2_fasta_matrix3 snpsort statusupdate subset_SNPs_all3 summarize_annotation tree_nodes3
+
+
+######################
+######################
+#
+# MAIN
+#
+######################
+######################
+
+# tar -C "${PACKAGEDIR}" "${ARCHIVE}"
+
+for BINARY in ${ALLBINS}
+do
+	cp "${BINARY}" "${PACKAGEDIR}/"
+done
+
+
+for BINARY in $USERBINS
+do
+	ln -s "${PACKAGEDIR}/${BINARY}" "${BINDIR}/${BINARY}"
+done
+
+
+
