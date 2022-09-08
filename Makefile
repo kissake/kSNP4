@@ -11,13 +11,6 @@
 ver = 4
 
 
-# Set this to 'true' to generate a smaller binary package, but note that
-# the individual scripts are no longer standalone; they reference another
-# built file named 'perlscripts' that is required for them to function.
-perlmonolith = false
-# perlmonolith = true
-
-
 #################################################################
 # Variables to let 'make' function.
 #################################################################
@@ -45,6 +38,9 @@ shellscripts = binaries/kSNP4 binaries/buildtree binaries/extractNthLocus4 binar
 
 
 dependencies = binaries/FastTreeMP binaries/parsimonator binaries/mummer binaries/consense binaries/jellyfish
+
+
+installer = installkSNP
 
 
 
@@ -96,23 +92,13 @@ kSNP$(ver)_Source.zip: kSNP$(ver).zip
 	hg archive --exclude ".hg*" --prefix kSNP$(ver)_Source $@
 
 
-# Build a different zip file depending on whether we are using a monolithic
-# perl binary.
-ifeq ($(perlmonolith),true)
-$(packagedir): $(docs) kSNP$(ver) $(perlbin) binaries/perlscripts $(pythonbin) $(shellscripts) $(dependencies)
-	mkdir -p $(packagedir)
-	mkdir -p $(binarydir)
-	for doc in $(docs) ; do cp $$doc $(packagedir) ; done
-	for bin in $(perlbin) $(pythonbin) binaries/perlscripts kSNP$(ver) ; do cp $$bin $(binarydir) ; done
-	for dep in $(dependencies) ; do cp $$dep $(binarydir) ; done
-else
 $(packagedir): $(docs) kSNP$(ver) $(perlbin) $(pythonbin) $(shellscripts) $(dependencies)
 	mkdir -p $(packagedir)
 	mkdir -p $(binarydir)
 	for doc in $(docs) ; do cp $$doc $(packagedir) ; done
 	for bin in $(perlbin) $(pythonbin) kSNP$(ver) ; do cp $$bin $(binarydir) ; done
 	for dep in $(dependencies) ; do cp $$dep $(binarydir) ; done
-endif
+	cp $(installer) $(packagedir)
 
 kSNP$(ver).zip: $(packagedir)
 	zip --symlinks -r $@ $(packagedir)
@@ -131,26 +117,10 @@ kSNP$(ver).zip: $(packagedir)
 # Perl
 #################################################################
 
-# Defined above, determines whether we build a single monolithic perl
-# executable that contains all scripts, or multiple binaries.  Significant
-# space savings to build one, at the cost of risking confusing the user.
-ifeq ($(perlmonolith),true)	
-
-# Builds all perl sripts into 'perlscripts' executable that determines
-# which one to execute based on the name used when calling it (thus the
-# symbolic links)
-binaries/perlscripts $(perlbin) &: $(perl)
-	echo "NERF"
-	pp -o binaries/perlscripts $(perl)
-	for script in $(perl); do ln -s perlscripts binaries/$$script; done
-
-else
 
 # Build perl scripts into binaries using pp, a tool from CPAN in the PAR::Packer module
 binaries/%: %.pl
 	pp -o $@ $<
-
-endif
 
 #################################################################
 # Python
