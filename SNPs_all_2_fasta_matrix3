@@ -1,3 +1,0 @@
-#!/bin/bash
-
-SNPs_all_2_fasta_matrix3.pl "${@}"
