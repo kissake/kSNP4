@@ -215,8 +215,8 @@ def processJellyfishDumps(inputFiles, jellyfishFilename, freqcheckFilename, ):
             
             filesToMerge.append(nextFile)
                     
-            nextFile = file['jellyfishDB']+ '_' + str(dbFileCount)
             dbFileCount = dbFileCount+1
+            nextFile = file['jellyfishDB']+ '_' + str(dbFileCount)
         
         processes = []
 
