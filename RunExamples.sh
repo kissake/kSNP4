@@ -67,6 +67,7 @@ CURRENT=`pwd`
 
 # Directory for caching
 CACHE="${HOME}/kSNP/"
+# CACHE='' # No caching.
 
 # Create our test directory (temporary directory)
 TEMPDIR=`mktemp -d -p "${CURRENT}"`
