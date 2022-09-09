@@ -82,6 +82,8 @@ for i in range(len(AccNumList)): #for each accession number
 	temp = text.split('\n')	
 	for j in range(len(temp)):	
 		if temp[j].startswith("ORIGIN"):
+			OUTFILE.write('{0}\n'.format(temp[j]))
+			OUTFILE.write('//\n\n')		
 			break
 		else:
 			 # download the accnum file
