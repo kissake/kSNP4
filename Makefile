@@ -34,13 +34,13 @@ perl = $(wildcard *.pl)
 perlbin = $(patsubst %.pl,binaries/%,$(wildcard *.pl))
 
 
-shellscripts = binaries/kSNP4 binaries/buildtree binaries/extractNthLocus4 binaries/selectNodeAnnotations4
+shellscripts = binaries/kSNP4 binaries/buildtree binaries/extractNthLocus4 binaries/selectNodeAnnotations4 binaries/installkSNP
 
 
 dependencies = binaries/FastTreeMP binaries/parsimonator binaries/mummer binaries/consense binaries/jellyfish
 
 
-installer = installkSNP
+installer = binaries/installkSNP
 
 
 
@@ -96,7 +96,7 @@ $(packagedir): $(docs) kSNP$(ver) $(perlbin) $(pythonbin) $(shellscripts) $(depe
 	mkdir -p $(packagedir)
 	mkdir -p $(binarydir)
 	for doc in $(docs) ; do cp $$doc $(packagedir) ; done
-	for bin in $(perlbin) $(pythonbin) kSNP$(ver) ; do cp $$bin $(binarydir) ; done
+	for bin in $(perlbin) $(pythonbin) kSNP$(ver) $(shellscripts) ; do cp $$bin $(binarydir) ; done
 	for dep in $(dependencies) ; do cp $$dep $(binarydir) ; done
 	cp $(installer) $(packagedir)
 
