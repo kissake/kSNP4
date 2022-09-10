@@ -231,7 +231,7 @@ parsimonator-src.zip:
 	curl -L "https://github.com/stamatak/Parsimonator-1.0.2/archive/refs/heads/master.zip" >$@
 
 
-jellyfish_build=Jellyfish-2.3.0
+jellyfish_build=Jellyfish-2.2.6
 binaries/jellyfish: jellyfish-src.tgz
 	tar -xf $<
 	cd $(jellyfish_build) && autoreconf -i && ./configure && make -j 4
@@ -239,7 +239,7 @@ binaries/jellyfish: jellyfish-src.tgz
 
 
 jellyfish-src.tgz:
-	curl -L "https://github.com/gmarcais/Jellyfish/archive/refs/tags/v2.3.0.tar.gz" >$@
+	curl -L "https://github.com/gmarcais/Jellyfish/releases/download/v2.2.6/jellyfish-2.2.6.tar.gz" >$@
 
 
 Examples: Examples.zip
