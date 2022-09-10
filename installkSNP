@@ -158,7 +158,7 @@ fi
 if [ "${INSTALL}" = "TRUE" ]
 then
     mkdir -p "${PACKAGEDIR}"
-    cp "${ARCHIVE}/*" "${PACKAGEDIR}/"
+    cp "${ARCHIVE}/"* "${PACKAGEDIR}/"
     # Make this installer available going forward.
     cp "${0}" "${PACKAGEDIR}/"
 fi
