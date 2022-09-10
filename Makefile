@@ -131,10 +131,6 @@ binaries/%: %.pl
 # Python
 #################################################################
 
-# Exception for ksnpConfig.py, which we don't need to build yet.
-binaries/ksnpConfig: ksnpConfig.py
-	echo "Skipping for now."
-
 # Build python binaries using pyinstaller.  Wrapped with a temporary directory
 # creation and removal to avoid cluttering the working directory.  May be more
 # efficient to create it and re-use it?
