@@ -88,8 +88,13 @@ docs: binaries/THE\ BSD\ OPENSOURCE\ LICENSE.pdf binaries/kSNP3.021\ User\ Guide
 # being successful.
 # I think this defaults to the revision currently checked out, minus local
 # revisions, and excludes the .hg directory to avoid sharing extra detail
-kSNP$(ver)_Source.zip: kSNP$(ver).zip
-	hg archive --exclude ".hg*" --prefix kSNP$(ver)_Source $@
+kSNP$(ver)_Source.zip: kSNP$(ver)_Source
+	zip -r $@ $<
+
+
+kSNP$(ver)_Source: kSNP$(ver).zip
+	hg archive --exclude ".hg*" $@  || echo "No mercurial available, switching to git"
+	git clone . $@ && rm -fr $@/.git || echo "No git available.  Did mercurial work?"
 
 
 $(packagedir): $(docs) kSNP$(ver) $(perlbin) $(pythonbin) $(shellscripts) $(dependencies)
@@ -231,7 +236,7 @@ parsimonator-src.zip:
 	curl -L "https://github.com/stamatak/Parsimonator-1.0.2/archive/refs/heads/master.zip" >$@
 
 
-jellyfish_build=Jellyfish-2.2.6
+jellyfish_build=jellyfish-2.2.6
 binaries/jellyfish: jellyfish-src.tgz
 	tar -xf $<
 	cd $(jellyfish_build) && autoreconf -i && ./configure && make -j 4
