@@ -106,7 +106,7 @@ $(packagedir): $(docs) kSNP$(ver) $(perlbin) $(pythonbin) $(shellscripts) $(depe
 	cp $(installer) $(packagedir)
 
 kSNP$(ver).zip: $(packagedir)
-	zip --symlinks -r $@ $(packagedir)
+	cd $(packagedir) && zip --symlinks -r ../$@ kSNP$(ver) installkSNP
 
 #################################################################
 #################################################################
