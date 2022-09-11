@@ -10,6 +10,9 @@
 # Current version:
 ver = 4
 
+# Whether to build dependencies from source or not
+deps_from = download
+# deps_from = source
 
 #################################################################
 # Variables to let 'make' function.
@@ -41,6 +44,8 @@ dependencies = binaries/FastTreeMP binaries/parsimonator binaries/mummer binarie
 
 
 installer = binaries/installkSNP
+
+download_cache = ~/kSNP/Build
 
 
 
@@ -173,16 +178,46 @@ binaries/%.pdf : %.pdf
 # NOTENOTENOTENOTENOTENOTENOTENOTENOTENOTENOTENOTE
 #
 
+# This is a process to acquire all of the below dependencies into the current
+# directory through another means.  Note that this breaks dependency checking,
+# which means that if the 'download' value is set for $(deps_from), the
+# binaries will be rebuilt _every_time_ because deps_download does not exist.
+deps_download: $(download_cache)/kSNP3.1_Linux_package.zip $(download_cache)/jellyfish $(download_cache)/FastTreeMP
+	cp $(download_cache)/jellyfish .
+	cp $(download_cache)/FastTreeMP .
+	unzip -j -o $(download_cache)/kSNP3.1_Linux_package.zip kSNP3.1_Linux_package/kSNP3/mummer kSNP3.1_Linux_package/kSNP3/consense \
+		kSNP3.1_Linux_package/kSNP3/ kSNP3.1_Linux_package/kSNP3/parsimonator
+
+# This triggers rules below.
+deps_source: consense mummer jellyfish FastTreeMP parsimonator
+	echo "Built dependent binaries from source"
 
 deps: $(dependencies)
+	echo "Dependencies are in place."
+
+$(dependencies): deps_$(deps_from)
+	cp `basename $@` binaries/
+#
+# Some (all?) of these dependencies can come from the distro the user is using.
+#
+# See:  apt-get install phylip jellyfish fasttree mummer
+#
+# Note that consense is not available.
+#
+
 
 # FastTreeMP
 # See: http://www.microbesonline.org/fasttree/
-binaries/FastTreeMP: FastTree.c
+FastTreeMP: $(download_cache)/FastTree.c
 	gcc -DOPENMP -fopenmp -O3 -finline-functions -funroll-loops -Wall -o $@ $< -lm
 
-FastTree.c:
+$(download_cache)/FastTree.c:
+	mkdir -p $(download_cache)
 	curl -L "http://www.microbesonline.org/fasttree/FastTree.c" > $@
+
+$(download_cache)/FastTreeMP:
+	mkdir -p $(download_cache)
+	curl -L "http://www.microbesonline.org/fasttree/FastTreeMP" > $@
 
 # Jellyfish
 # This is available as a package from Debian with the version available on 
@@ -195,20 +230,21 @@ FastTree.c:
 # More info available here: https://evolution.genetics.washington.edu/phylip.html
 # See testing here: https://evolution.gs.washington.edu/phylip/doc/consense.html
 consense_build = phylip-3.697
-binaries/consense: phylip-3.697.tar.gz
+consense: $(download_cache)/phylip-3.697.tar.gz
 	tar -xzf $<
 	# Patch consense to permit build and to permit longer (200 char in this case) names.
 	patch -p 0 < consense.patch
 	cd $(consense_build)/src && make -f Makefile.unx consense
 	cp $(consense_build)/src/consense binaries/
 
-phylip-3.697.tar.gz:
+$(download_cache)/phylip-3.697.tar.gz:
+	mkdir -p $(download_cache)
 	curl -L "http://evolution.gs.washington.edu/phylip/download/phylip-3.697.tar.gz" > $@
 
 
 # Mummer
 mummer_build = mummer-4.0.0rc1
-binaries/mummer: mummer-src.tgz
+mummer: $(download_cache)/mummer-src.tgz
 	tar -xzf $<
 	cd $(mummer_build) && autoreconf -fi && ./configure && make mummer
 	cp $(mummer_build)/.libs/mummer binaries/mummer-bin
@@ -217,38 +253,64 @@ binaries/mummer: mummer-src.tgz
 	chmod a+x "$@"
 	# This is a release candidate, guessing that's why the build doesn't make the standalone binary?
 
-mummer-src.tgz:
-	curl -L "https://github.com/mummer4/mummer/archive/refs/tags/v4.0.0rc1.tar.gz" > $@
+$(download_cache)/mummer-src.tgz:
+	mkdir -p $(download_cache)
+	curl -L "https://github.com/mummer4/mummer/releases/download/v4.0.0rc1/mummer-4.0.0rc1.tar.gz" > $@
 
 # Parsimonator
 parsimonator_build=Parsimonator-1.0.2-master
-binaries/parsimonator: parsimonator-src.zip
+parsimonator: $(download_cache)/parsimonator-src.zip
 	unzip $<
 	cd $(parsimonator_build)/ && make -f Makefile.gcc
 	cp $(parsimonator_build)/parsimonator binaries/
 	rm -r $(parsimonator_build)
 
-parsimonator-src.zip:
+$(download_cache)/parsimonator-src.zip:
+	mkdir -p $(download_cache)
 	curl -L "https://github.com/stamatak/Parsimonator-1.0.2/archive/refs/heads/master.zip" >$@
 
 
-jellyfish_build=jellyfish-2.2.6
-binaries/jellyfish: jellyfish-src.tgz
+jellyfish_build=Jellyfish-2.3.0
+jellyfish: $(download_cache)/jellyfish-src.tgz
 	tar -xf $<
 	cd $(jellyfish_build) && autoreconf -i && ./configure && make -j 4
 	cp $(jellyfish_build)/bin/.libs/jellyfish $@
 
 
-jellyfish-src.tgz:
-	curl -L "https://github.com/gmarcais/Jellyfish/releases/download/v2.2.6/jellyfish-2.2.6.tar.gz" >$@
+$(download_cache)/jellyfish-src.tgz:
+	mkdir -p $(download_cache)
+	curl -L "https://github.com/gmarcais/Jellyfish/releases/download/v2.3.0/jellyfish-2.3.0.tar.gz" >$@
+
+$(download_cache)/jellyfish:
+	mkdir -p $(download_cache)
+	curl -L "https://github.com/gmarcais/Jellyfish/releases/download/v2.3.0/jellyfish-linux" >$@
 
 
-Examples: Examples.zip
+Examples: $(download_cache)/Examples.zip
 	unzip "$<"
 	rm -r __MACOSX/
 
-Examples.zip:
+Examples.zip: $(download_cache)/Examples.zip
+	cp $< $@
+
+$(download_cache)/Examples.zip:
+	mkdir -p $(download_cache)
 	curl -L "https://downloads.sourceforge.net/project/ksnp/Examples.zip" >$@
+
+$(download_cache)/kSNP3.1_Linux_package.zip:
+	mkdir -p $(download_cache)
+	curl -L "https://downloads.sourceforge.net/project/ksnp/kSNP3.1_Linux_package.zip" >$@
+
+
+
+
+
+
+#################################################################
+# CLEANLINESS
+#################################################################
+
+
 
 
 clean:
@@ -258,7 +320,7 @@ clean:
 	rm $(dependencies) || true
 
 distclean: clean
-	rm parsimonator-src.zip mummer-src.tgz mummer-bin libumdmummer.so.0 mummer phylip-3.697.tar.gz jellyfish-src.tgz FastTree.c Examples.zip  || true
+	rm parsimonator-src.zip mummer-src.tgz mummer-bin parsimonator consense jellyfish libumdmummer.so.0 mummer phylip-3.697.tar.gz jellyfish-src.tgz FastTree.c Examples.zip || true
 	rm -r  $(mummer_build) $(parsimonator_build) $(consense_build) $(jellyfish_build) __MACOSX Examples __pycache__ || true
 
 
