@@ -9,6 +9,8 @@
 # kmers found (in this dataset).  Need to assume that the overlap is worse than that
 # (however, the worst case, completely divergent genomes, doesn't give us any data,
 # so how important is it to plan for that case?)
+#
+# Revised estimate is closer to 115bytes or even 33bytes per kmer.  Keep testing.
 # May be worth trying to crunch memory usage.  Should be doable.
 
 import ksnpCache as kcache
@@ -146,6 +148,8 @@ def loadSNPsFromSNPsAll(bucket, snpsAllFile, startGenomeBit=1):
         nextLines = snps.readlines(bufferSize)
 
     # logging.debug("Added SNP: %s: %s", lastSnpLocus, bucket[lastSnpLocus])
+
+    snps.close()
     
     logging.info("Added %s SNP kmers to bucket (%s loci), new bucket size: %s loci", addedSNPsCount, lociAddedCount, len(bucket))
     
