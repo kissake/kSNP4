@@ -183,8 +183,8 @@ binaries/%.pdf : %.pdf
 # which means that if the 'download' value is set for $(deps_from), the
 # binaries will be rebuilt _every_time_ because deps_download does not exist.
 deps_download: $(download_cache)/kSNP3.1_Linux_package.zip $(download_cache)/jellyfish $(download_cache)/FastTreeMP
-	cp $(download_cache)/jellyfish .
-	cp $(download_cache)/FastTreeMP .
+	cp $(download_cache)/jellyfish . && chmod a+x jellyfish
+	cp $(download_cache)/FastTreeMP . && chmod a+x FastTreeMP
 	unzip -j -o $(download_cache)/kSNP3.1_Linux_package.zip kSNP3.1_Linux_package/kSNP3/mummer kSNP3.1_Linux_package/kSNP3/consense \
 		kSNP3.1_Linux_package/kSNP3/ kSNP3.1_Linux_package/kSNP3/parsimonator
 
