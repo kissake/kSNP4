@@ -38,7 +38,7 @@ PACKAGEDIR=/usr/local/kSNP4Pkg
 BINDIR=/usr/local/bin
 
 # Variables containing lists of files that are required for kSNP to function
-USERBINS="kSNP4 Kchooser4 MakeKSNP4infile extractNthLocus4 rmNodeNamesFromTree4 ksnpConfig"
+USERBINS="checkFileNames checkGenbankFromNCBI extractNthLocus4 fixOldFastaHeaders genomeNames4 getFastaGenomes Kchooser4 kSNP4 ksnpConfig MakeKSNP4infile nodeChiSquare2tree4 parseNCBIcsv rmNodeNamesFromTree4 selectNodeAnnotations4"
 
 # A program to manipulate the kSNP configuration (if any)
 RECONFIGURE=ksnpConfig
