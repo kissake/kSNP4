@@ -72,24 +72,28 @@ for i in range(len(AccNumList)): #for each accession number
 	Entrez.email = 'barryghall@gmail.com'
 	handle = Entrez.esearch(db="nuccore", term=accnum, retmax=100)
 	records = Entrez.read(handle) ##records is a dict
-	#print(records, '\n\n')
+	# print(records, '\n\n')
 	#identifiers = records['IdList']
 	ID = records['IdList']
-	ID = str(ID[0])
-	#print("The ID is ", ID)
-	handle = Entrez.efetch(db="nuccore", id=accnum, retmax="100", rettype="gb", retmode="text") #, retmode="text"
-	text = handle.read() #Entrez.read(handle). text is a long string with the contents of downloaded file
-	temp = text.split('\n')	
-	for j in range(len(temp)):	
-		if temp[j].startswith("ORIGIN"):
-			OUTFILE.write('{0}\n'.format(temp[j]))
-			OUTFILE.write('//\n\n')		
-			break
-		else:
-			 # download the accnum file
-			 OUTFILE.write('{0}\n'.format(temp[j]))
+	if len(ID) > 0:
+		ID = str(ID[0])
+		#print("The ID is ", ID)
+		try:
+			handle = Entrez.efetch(db="nuccore", id=accnum, retmax="100", rettype="gb", retmode="text") #, retmode="text"
+		except:
+			continue
+		text = handle.read() #Entrez.read(handle). text is a long string with the contents of downloaded file
+		temp = text.split('\n')	
+		for j in range(len(temp)):	
+			if temp[j].startswith("ORIGIN"):
+				OUTFILE.write('{0}\n'.format(temp[j]))
+				OUTFILE.write('//\n\n')		
+				break
+			else:
+				 # download the accnum file
+				 OUTFILE.write('{0}\n'.format(temp[j]))
 
-	OUTFILE.write('//\n\n')
+		OUTFILE.write('//\n\n')
 	time.sleep(1)
 
 OUTFILE.close()
