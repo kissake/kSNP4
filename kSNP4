@@ -77,7 +77,6 @@ export FREQCHECK="${KSNPPATH}/inline_frequency_check"
 export PARTITIONKMERS="${KSNPPATH}/partitionKmers"
 export FINDSNPS="${KSNPPATH}/find_snps"
 export GUESSPARTITION="${KSNPPATH}/guessPartition"
-export CALCULATElIMITS="${KSNPPATH}/calculateLimits"
 
 
 
@@ -341,20 +340,12 @@ Optional arguments:
  -annotate <annotate_list>  File listing genome names for which to find positions
  	   		 and annotate SNPs, names match column 2 of the -in file.
 
- -SNPs_all <path to SNPs all file>   If given then it uses existing SNPs instead
- 	   	    	 of searching for new ones, and adds new genomes to the
-			 existing analysis. Assumes only the new genomes are 
-			 listed in the -in file.
-
  -core	                 Calculate core SNPs and core SNP parsimony tree
  -ML	                 Calculate Maximum Likelihood tree
- -genbank <genbank.gbk>	 Source file for SNP annotation
  -CPU <num_CPU>		 Number of CPU's to use, (default to all)
  -NJ  			 Calculate a neighbor joining tree
  -vcf			 Create a vcf file using the first genome specified in 
  			 the -positions file as the reference genome
- -cachedir <cache dir>      Cache kSNP data to improve performance across runs.
- -nocache      		 Disable all caching (this is the default)
 
 
 USAGE
@@ -445,6 +436,55 @@ echo "output / working directory: ${DIR}"
 echo "k=${K}"
 echo "annotate_list file: ${ANNOTATELISTINPUT}"
 
+if [ -n "${MIN_FRACTION_WITH_LOCUS}" ]  # Defaults to empty string.
+then
+	echo "min_fraction_with_locus: ${MIN_FRACTION_WITH_LOCUS}"
+fi
+
+if [ -n "${GENBANKFILEINPUT}" ]   # Already checked for existence when parsing arguments.
+then
+	echo "Genbank file for annotations (and any from NCBI with gi number which are automatically downloaded): ${GENBANKFILEINPUT}"
+fi
+
+
+MAXOPENFILES=`ulimit -H -n`
+ulimit -n "${MAXOPENFILES}"
+echo "Maximum number of open files: ${MAXOPENFILES}"
+
+
+if [ 0 -eq "${NUM_CPUS}" ]
+then
+	echo "Automatically determining number of CPUs to use:"
+	OS=`uname`
+       	echo "The operating system is ${OS}"
+
+	if [ "Darwin" = "${OS}" ] # MacOS
+	then
+		NUM_CPUS=`/usr/sbin/system_profiler SPHardwareDataType | awk '/Total Number of Cores/ {print $5}'`
+	else # Linux
+		NUM_CPUS=`cat /proc/cpuinfo | grep processor | wc -l`
+	fi
+
+	echo "Discovered ${NUM_CPUS}"
+
+	if [ 1 -gt "${NUM_CPUS}" ]
+	then
+	       	NUM_CPUS=8
+		echo "Could not automatically determine number of CPUs available, defaulting to ${NUM_CPUS}"
+        fi
+fi
+
+echo "Number CPUs: ${NUM_CPUS}"
+
+echo "SNPS_ALL_INPUT=${SNPS_ALL_INPUT}"
+echo "GENBANKFILEINPUT=${GENBANKFILEINPUT}"
+echo "CORE=${CORE}"
+echo "ML=${ML}"
+echo "NJ=${NJ}"
+echo "VCF=${VCF}"
+echo "DEBUG=${DEBUG}"
+
+
 
 
 ### Preprocess FASTA input file.
@@ -459,68 +499,6 @@ cp -f "${FASTALISTINPUT}" "${FASTALIST}"
 # Then process the "${FASTALIST}" file to correct its line-endings.
 perl -i -pe 's/\015\012/\012/g' "${FASTALIST}"    # Windows to unix
 perl -i -pe 's/\015/\012/g' "${FASTALIST}"	      # Mac old format to unix
-
-
-if [ -n "${MIN_FRACTION_WITH_LOCUS}" ]  # Defaults to empty string.
-then
-	echo "min_fraction_with_locus: ${MIN_FRACTION_WITH_LOCUS}"
-fi
-
-if [ -n "${GENBANKFILEINPUT}" ]   # Already checked for existence when parsing arguments.
-then
-	echo "Genbank file for annotations (and any from NCBI with gi number which are automatically downloaded): ${GENBANKFILEINPUT}"
-fi
-
-
-# Set the number of open files ulimit to the hard limit.
-# The risk here is that we could bog down the system with open files.  This avoids mistakes having to do
-# with cleverness in choosing the limit to set and being wrong such that the program won't run.  The user
-# can mitigate this risk if needed by setting their own limit for this process.
-MAXOPENFILES=`ulimit -H -n`
-ulimit -n "${MAXOPENFILES}"
-
-# Set limits, level of parallelism to target, calculate CPUs
-NUMPARTS=`"${CALCULATElIMITS}" "${FASTALIST}" "${K}" "${NUM_CPUS}" | cut -f 1`
-ESTFILES=`"${CALCULATElIMITS}" "${FASTALIST}" "${K}" "${NUM_CPUS}" | cut -f 2`
-REALCPUS=`"${CALCULATElIMITS}" "${FASTALIST}" "${K}" "${NUM_CPUS}" | cut -f 3`
-# Outputs are: # of parts to use, anticipated # of open files required, and # of physical CPUs ("None" if that can't be determined)
-
-
-if [ 0 -eq "${NUM_CPUS}" ]
-then
-    echo "Automatically determining number of CPUs to use:"
-    if [ "${REALCPUS}" = "None" ]
-    then
-	NUM_CPUS=8
-	echo "Unable to guess how many CPUs on this computer.  Please pass  -CPU <# cpus to use> on the commandline."
-	echo "Defaulting to ${NUM_CPUS} processes at a time (hardcoded)."
-    else
-	NUM_CPUS="${REALCPUS}"
-    fi
-fi
-
-if [ "${ESTFILES}" -gt "${MAXOPENFILES}" ]
-then
-    echo "WARNING: The detected open file limit on this computer (${MAXOPENFILES}) is likely to be exceeded by this run"
-    echo "If it is, the run will almost certainly fail (but we'll try anyway in case we're wrong).  You can investigate"
-    echo "raising this limit for your computer (keywords: 'ulimit' and 'open files' and your operating system)."
-    echo "There may be false positives for this warning when used with genome data that has many short length sequences"
-    echo "that overlap"
-fi
-
-
-echo "Number CPUs: ${NUM_CPUS}"
-
-echo "Number of partitions for the data: ${NUMPARTS}"
-
-echo "SNPS_ALL_INPUT=${SNPS_ALL_INPUT}"
-echo "GENBANKFILEINPUT=${GENBANKFILEINPUT}"
-echo "CORE=${CORE}"
-echo "ML=${ML}"
-echo "NJ=${NJ}"
-echo "VCF=${VCF}"
-echo "DEBUG=${DEBUG}"
-
 
 
 
@@ -607,24 +585,8 @@ date
 #############
 #############
 
-# Find the total number of kmers to get a better estimate as to number of partitions to use.
-# NOTE NOTE NOTE  This estimate has been off by a _factor_of_three_ (high) in what I suspect to
-# be a normal case
-TOTALKMERS=`wc -l kmers.fsplit* | tail -n 1 | awk '{print $1}'`
-
-NUMPARTS=`"${CALCULATElIMITS}" "${FASTALIST}" "${K}" "${NUM_CPUS}" --kmers ${TOTALKMERS} | cut -f 1`
-
-if [ "${NUMPARTS}" -gt "${MAXOPENFILES}" ]
-then
-   # NOTE There is a threshold issue where NUMPARTS = MAXOPENFILES-2 still kills kSNP4.  This should be
-   # unlikely, but BUG FIXME XXX TODO when we move into Python.
-   
-   # Too few parts means memory pressure.  Too many parts means kSNP dies when partitioning the data.
-   # Resetting NUMPARTS down to a safe value.
-   let NUMPARTS="${MAXOPENFILES}"-20
-fi
-   
-
+# If we start to hit memory limits, we will want to break this down further.
+NUMPARTS="${NUM_CPUS}"
 
 PARTITIONS='partitions.txt'
 
