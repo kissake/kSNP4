@@ -299,7 +299,7 @@ for info in SNPinfo:
 		if AccNum != 'NoAccNum':
 			InAnnotatedGenome = 'T'
 			InAnnotatedRegion = 'F'
-			for i in range(len(RefGenomesDict[AccNum])):
+			for i in range(len(RefGenomesDict.get(AccNum,[]))):
 				if SNPpos >= RefGenomesDict[AccNum][i][2] and SNPpos <=RefGenomesDict[AccNum][i][3]:
 					geneType = RefGenomesDict[AccNum][i][0]
 					complement = RefGenomesDict[AccNum][i][1]
