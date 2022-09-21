@@ -86,6 +86,7 @@ export THISDIR=`pwd`
 export SPLITNAME="fsplit"
 export FILE2GENOME="fileName2genomeName"
 export HASHSIZE=1000000000   # One billion entries in jellyfish hash table.
+export MAXOPENFILES=10240
 export FINDALLELECMDS="cmds_find_allele"
 export SNPSPREFIX="SNPs"
 export CONFLICTSSUFFIX="conflictsDeleted"
@@ -447,7 +448,6 @@ then
 fi
 
 
-MAXOPENFILES=`ulimit -H -n`
 ulimit -n "${MAXOPENFILES}"
 echo "Maximum number of open files: ${MAXOPENFILES}"
 
