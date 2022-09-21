@@ -647,7 +647,7 @@ then
 		for (g = 0; g < ${NUMGENOMES} ; g++) 
 		    print kmer,g,part,p;
 	    }
-     }" | xargs -t -n "${GENOMEPLUSSNP}" -P "${NUM_CPUS}" "${FINDSNPS}" --info --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}" --snps-all
+     }" | xargs -t -n "${GENOMEPLUSSNP}" -P "${NUM_CPUS}" "${FINDSNPS}" --debug --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}" --snps-all
 
     date
 
@@ -669,7 +669,7 @@ else
 		for (g = 0; g < ${NUMGENOMES} ; g++) 
 		    print kmer,g,part,p;
 	    }
-     }" | xargs -t -n "${NUMGENOMES}" -P "${NUM_CPUS}" "${FINDSNPS}" --info --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}"
+     }" | xargs -t -n "${NUMGENOMES}" -P "${NUM_CPUS}" "${FINDSNPS}" --debug --fasta-suffix "${SNPFASTAS}" --snp-suffix ".${SNPSPREFIX}"
 
     date
     
