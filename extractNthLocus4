@@ -1,5 +1,4 @@
-#!/bin/tcsh
-#v3.0
+#!/bin/bash
 
 
 #  This extracts the nth locus from the core_SNPs or SNPs_in_majority# file, handy if you're looking at position n in the core SNPs matrix or SNPs_in_majority matrix and you want to know what locus it is.
@@ -10,8 +9,8 @@
 # extract_nth_locus 30 SNPs_in_majority0.5  > thirtieth_locus_in_SNPs_in_majority
 
 
-set nth=$1
-set SNP_file=$2
+NTH="${1}"
+SNPFILE="${2}"
 
-set locus=`awk '{print $1}' $SNP_file | sort -un | awk -v n=$nth 'NR==(n+1) {print}'`
-awk -v locus=$locus '$1==locus {print}' $SNP_file
+LOCUS=`awk '{print $1}' "${SNPFILE}" | sort -un | awk -v "n=${NTH}" 'NR==(n+1) {print}'`
+awk -v "locus=${LOCUS}" '$1==locus {print}' "${SNPFILE}"
