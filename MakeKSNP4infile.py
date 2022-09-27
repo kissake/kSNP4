@@ -24,6 +24,7 @@ thisPath = ''
 genomeID = ''
 Files = [] #list of files in target directory
 fileList = [] #col0 is path col1 is file name
+OS = sys.platform
 
 #get command line arguments
 for i in range(1, len(sys.argv)):
@@ -53,7 +54,13 @@ for file in Files:
 
 os.chdir(home)
 OUTFILE = open(outfile, 'w')
-for i in range(len(fileList)):
-	OUTFILE.write('{0}\t{1}\n'.format(fileList[i][0], fileList[i][1]))
-	
+if OS == 'darwin':
+	for i in range(len(fileList)):
+		OUTFILE.write('{0}\t{1}\n'.format(fileList[i][0], fileList[i][1]))
+elif OS == 'linux':	
+	for i in range(len(fileList)-1):
+		OUTFILE.write('{0}\t{1}\n'.format(fileList[i][0], fileList[i][1]))
+	OUTFILE.write('{0}\t{1}'.format(fileList[i][0], fileList[i][1]))
+
+
 OUTFILE.close()
