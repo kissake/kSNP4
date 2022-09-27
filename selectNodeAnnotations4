@@ -1,23 +1,67 @@
-#!/bin/tcsh
-#v3.0
+#!/bin/bash
 
-# select_node_annotations <node_num> <tree method>
-# creates node.$node.$tree.annotations
-# Example:  select_node_annotations 58 ML
-# results in node.58.ML.annotations
-
-set node=$1
-set tree=$2
-
-
-if  ($node == ""  )  then
-    echo "Usage: select_node_annotations <node> <tree method>\n\nCreates node.NODE.treeType.annotations containing the SNP_annotations for just the indicated node.\n\nnode is the number of the node you want or the strain name for leaf nodes, ascertained from the \ntree_AlleleCounts.(ML|NJ|parsimony|core|majority0.5).NodeLabel.tre file or the \nNode_SNP_counts file, and the tree method is ML, NJ, parsimony, core, or majority0.5.\n\nExample1:  select_node_annotations 59 ML\nExample2:  select_node_annotations EcoW parsimony\n"
-    exit
-endif 
+# Usage: select_node_annotations <node> <tree method>
+# 
+# Creates node.<node>.<tree method>.annotations containing the SNP_annotations for just the indicated node.
+# 
+# <node> is the number of the node you want or the strain name for leaf nodes, ascertained from the 
+# tree_AlleleCounts.(SNPs_all|core_SNPs|SNPs_in_majority0.x).(ML|NJ|parsimony).NodeLabel.tre file or the 
+# corresponding Node_SNP_counts file.  The <tree method> is the set of SNPs to build a tree from and the
+# tree construction method separated by a period. (see examples)
+# 
+# Example1:  select_node_annotations 59 SNPs_all.ML
+# Example2:  select_node_annotations EcoW SNPs_in_majority0.75.parsimony
 
 
-grep -w Node.$node ClusterInfo.$tree | awk '{print  "^" $1}' | sort >! node.$node.$tree.loci
 
-head -1  SNP_annotations >! node.$node.$tree.annotations
-grep -w -f node.$node.$tree.loci SNP_annotations >> node.$node.$tree.annotations
+ANNOTATIONS="SNPs_all_annotated"
 
+NODE="${1}"
+TREE="${2}"
+
+# Input file:
+TREEFILE="ClusterInfo.${TREE}"
+
+# Output files:
+NODELOCI="node.${NODE}.${TREE}.loci"
+NODEANNOTATIONS="node.${NODE}.${TREE}.annotations"
+
+# If the input file doesn't exist, or if no node identifier was specified,
+# remind the user how to use the script.
+if [ ! -f "${TREEFILE}" -o -z "${NODE}" ]
+then
+    cat <<EOF
+Usage: select_node_annotations <node> <tree method>
+
+Creates node.<node>.<tree method>.annotations containing the SNP_annotations for just the indicated node.
+
+<node> is the number of the node you want or the strain name for leaf nodes, ascertained from the 
+tree_AlleleCounts.(SNPs_all|core_SNPs|SNPs_in_majority0.x).(ML|NJ|parsimony).NodeLabel.tre file or the 
+corresponding Node_SNP_counts file.  The <tree method> is the set of SNPs to build a tree from and the
+tree construction method separated by a period. (see examples)
+
+Example1:  select_node_annotations 59 SNPs_all.ML
+Example2:  select_node_annotations EcoW SNPs_in_majority0.75.parsimony
+
+EOF
+
+    if [ ! -f "${TREEFILE}" ]
+    then
+        echo "File ${TREEFILE} not found."
+    else
+        echo "Node not specified. (${NODE})"
+    fi
+    exit 1
+fi
+
+
+grep -w Node.${NODE} "${TREEFILE}" | awk '{print  "^" $1}' | sort > "${NODELOCI}"
+
+if [ -s "${NODELOCI}" ] 
+then
+    grep -w -f "${NODELOCI}" "${ANNOTATIONS}">> "${NODEANNOTATIONS}"
+else
+    rm "${NODELOCI}"
+    echo "Node (Node.${NODE}) not found.  Look in ${TREEFILE} for candidates."
+    exit 1
+fi 
