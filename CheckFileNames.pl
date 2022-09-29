@@ -42,32 +42,33 @@ while ($line = <INFILE>) {
 	$lineCount++;
 	#print "$lineCount\n";
 	@temp = split/\t/, $line;
-	@temp2 = split/\//, $temp[0];	
-	$fileName = $temp2[$#temp2];
-	
-	#test for more than one '.' in the file name
-	@temp3 = split /\./, $fileName;
-	#define the $fn
-	@temp4 = split /\./, $fileName;
-	$fn = $temp4[0];
-	if (scalar @temp3 > 2) {
+	if (scalar @temp > 0) { # Ignore blank lines.
+	    # Only if the line is not blank...
+	    @temp2 = split/\//, $temp[0];	
+	    $fileName = $temp2[$#temp2];
+
+	    #test for more than one '.' in the file name
+	    @temp3 = split /\./, $fileName;
+	    #define the $fn
+	    @temp4 = split /\./, $fileName;
+	    $fn = $temp4[0];
+	    if (scalar @temp3 > 2) {
 		$errorString = "Line $lineCount:\t$fileName\n";
 		push (@errors, $errorString);
-		}
-		elsif($fileName =~ /\:|\"|\'|\ |\?|\+|\)|\(|\*|\&|\^|\%|\$|\#|\@|\!|\;|\>|\</) { #check for spaces in names
-			$errorString = "Line $lineCount:\t$fileName\n";
-			push (@errors, $errorString);
-			}
-	#put each genomeID into %genomes 
-	if (exists $genomes{$temp[1]}) {
+	    }
+	    elsif($fileName =~ /\:|\"|\'|\ |\?|\+|\)|\(|\*|\&|\^|\%|\$|\#|\@|\!|\;|\>|\</) { #check for spaces in names
+		$errorString = "Line $lineCount:\t$fileName\n";
+		push (@errors, $errorString);
+	    }
+	    #put each genomeID into %genomes 
+	    if (exists $genomes{$temp[1]}) {
 		$genomes{$temp[1]}++;
-		}
-		else {
-			$genomes{$temp[1]} = 1;  
-			}
-	
-	
+	    }
+	    else {
+		$genomes{$temp[1]} = 1;  
+	    }
 	}
+}
 close INFILE;
 
 if (scalar keys (%genomes) > 0) {
