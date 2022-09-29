@@ -45,30 +45,34 @@ def readInfile(infileName):
 		genomeSeq = ''
 		line = line.rstrip()
 		temp = line.split()
-		path = temp[0]
-		ID = temp[1]
-		for seq_record in SeqIO.parse(path, 'fasta'):
-			theSequence = seq_record.seq
-			genomeSeq = genomeSeq + str(theSequence)
-		genomeLen = len(genomeSeq)
-		GenomesList.append([path, genomeLen, ID])
+		if len(temp) > 0: # If this line contains only whitespace, ignore it
+			path = temp[0]
+			ID = temp[1]
+			for seq_record in SeqIO.parse(path, 'fasta'):
+				theSequence = seq_record.seq
+				genomeSeq = genomeSeq + str(theSequence)
+			genomeLen = len(genomeSeq)
+			GenomesList.append([path, genomeLen, ID])
 	return(GenomesList)
 
 def findUniqueMerFraction(Kvalue, fractionUniqueKmers,theFile):
 	#variables
 	numUniqueKmers = 0
 	kmers = []
+	jellyfishOutput='output'
 	theNumber = str(10000000)
-	OS= sys.platform
 	
-	subprocess.run(['jellyfish', 'count', '-C', '-o', 'output', '-s', theNumber, '-t', '3', theFile, '-m', str(Kvalue)]) 
+	subprocess.run(['jellyfish', 'count', '-C', '-o', jellyfishOutput, '-s', theNumber, '-t', '3', theFile, '-m', str(Kvalue)]) 
 	numMers = 0
 	OUTFILE = open('jellyout.txt', 'w')
-	if OS == 'linux':
-		subprocess.run(['jellyfish', 'dump', 'output_0', '-c'], stdout=OUTFILE)
-	elif OS == 'darwin':
-		subprocess.run(['jellyfish', 'dump', 'output', '-c'], stdout=OUTFILE) 
- 
+
+	if not os.access(jellyfishOutput, os.F_OK):
+		# This is probably an older version of Jellyfish, which defaults to
+		# producing an _0 suffix on the output filename.
+		jellyfishOutput = jellyfishOutput + '_0'
+		
+	subprocess.run(['jellyfish', 'dump', jellyfishOutput, '-c'], stdout=OUTFILE)
+
 	OUTFILE.close()
 	INFILE = open( 'jellyout.txt', 'r')
 	for line in INFILE:
@@ -305,9 +309,11 @@ REPORTFILE.write('\nFrom a sample of {0} unique kmers {1} are core kMers.\n'.for
 REPORTFILE.write('FCK = {0:.3f}.\n'.format(FCK))
 
 #clean up
-if OS=='linux':
+if not os.access('output', os.F_OK):
+	# This is probably an older version of Jellyfish, which defaults to
+	# producing an _0 suffix on the output filename.
 	os.remove('output_0')
-elif OS=='darwin':
+else:
 	os.remove('output')
 os.remove('theFile')
 os.remove('jellyout.txt')
