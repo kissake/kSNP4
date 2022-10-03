@@ -315,12 +315,12 @@ $(download_cache)/kSNP3.1_Linux_package.zip:
 
 clean:
 	rm binaries/* || true
-	rm -r $(packagedir) || true
 	rm $(all_products) || true
 	rm $(dependencies) || true
+	rm kSNP$(ver)_Source.zip kSNP$(ver).zip || true
+	rm -r kSNP$(ver)_Source $(packagedir) || true
 
 distclean: clean
 	rm parsimonator-src.zip mummer-src.tgz mummer-bin parsimonator consense jellyfish libumdmummer.so.0 mummer phylip-3.697.tar.gz jellyfish-src.tgz FastTree.c Examples.zip || true
 	rm -r  $(mummer_build) $(parsimonator_build) $(consense_build) $(jellyfish_build) __MACOSX Examples __pycache__ || true
-
 
