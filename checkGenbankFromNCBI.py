@@ -24,7 +24,7 @@ headersList = 'headers.annotate_list' # file of fasta headers
 GBfile = 'genbank_from_NCBI.gbk'
 
 #get alll the accession numbers
-INFILE =open(headersList,'rU')
+INFILE =open(headersList,'r')
 for line in INFILE:
 	temp = line.split(' ')
 	accNum = temp[1]
@@ -32,7 +32,7 @@ for line in INFILE:
 INFILE.close()
 
 #search genbank_from_NCBI.gbk
-INFILE = open(GBfile, 'rU')
+INFILE = open(GBfile, 'r')
 data = INFILE.read().splitlines() #data is a list of lines ing GBfile
 OUTFILE = open('missing_accession_numbers.txt', 'w')
 for i in range(len(AccList)):

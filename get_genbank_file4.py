@@ -50,7 +50,7 @@ elif fileExist == False: #if the file does not exist create it
 #print(pathToFastaGenome)
 
 #extract the accession number from the sequence file header
-INFILE = open(pathToFastaGenome, 'rU')
+INFILE = open(pathToFastaGenome, 'r')
 
 for line in INFILE:
 	if line.startswith('>'):
