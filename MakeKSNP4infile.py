@@ -24,6 +24,7 @@ thisPath = ''
 genomeID = ''
 Files = [] #list of files in target directory
 fileList = [] #col0 is path col1 is file name
+numElements = 0
 
 #get command line arguments
 for i in range(1, len(sys.argv)):
@@ -47,8 +48,9 @@ for file in Files:
 	if not file.startswith('.'):
 		#sys.stdout.write("{0}\n".format(file))
 		thePath = os.path.abspath(file)
-		#OUTFILE.write('{0}\t{1}\n'.format(thePath, file))
-		fileList.append([thePath, file])
+		temp = file.split('.')
+		genomeID = temp[0]
+		fileList.append([thePath, genomeID])
 #print(Files[0])
 
 os.chdir(home)
