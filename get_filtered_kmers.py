@@ -44,7 +44,6 @@ def parseGetFilteredKmerArgs( override = None ):
     parser.add_argument('kmerSuffix', help='The suffix to use for files cotaining kmer frequency counts', default = 'kmer')
     parser.add_argument('jellyfishSuffix', help='The suffix to use for files containing jellyfish database data', default= 'Jelly')
     parser.add_argument('filterSuffix', help='The suffix to use for filtered kmer frequency counts', default= 'filtered')
-    kcache.addCacheOptions(parser)
     parser.add_argument('--debug', action='store_true', help='Output diagnostic data to the screen using STDERR')
     parser.add_argument('--info', action='store_true', help='Output progress updates to the screen using STDERR')
 
@@ -54,36 +53,6 @@ def parseGetFilteredKmerArgs( override = None ):
         return parser.parse_args(override)
 
 
-def mergeFastaReads(inputFile, inputFileName, outputFile):
-    '''
-    BROKEN
-    '''
-    
-    filler = 'N'
-    headerMatch = re.compile(r'^>.*$') # To be removed
-    firstHeaderRE = r'^>.*' + newline
-    subsequentHeadersRE = newline+'>.*'+newline
-    headerMatch = re.compile( firstHeaderRE + r'|' + subsequentHeadersRE)
-    # Match two or more Ns (if there is only one N, no substitution to do.
-    multipleNsMatch = re.compile(r'NN+')
-    # A str.translate table to remove newlines from a string. (faster than re)
-    removeNewlines = str.maketrans(newline,filler)
-
-    
-
-    #Output
-    outputFile.write(">" + inputFileName + " merged" + newline)
-
-    # No idea how efficient this is.  It could blow up memory?
-    outputFile.write(
-        multipleNsMatch.sub(
-            filler, headerMatch.sub( # Remove multiple Ns.
-                '',inputFile.read() # Remove header lines
-                ).translate(removeNewlines)
-            )
-        )
-    outputFile.write(newline)
-    
 
 
 def parseFastaInputFiles(fileToGenomeFilename,fastalistFilename, inputFilenamePrefix, jellyfishFilenameSuffix, kmerFilenameSuffix, k):
@@ -109,15 +78,6 @@ def parseFastaInputFiles(fileToGenomeFilename,fastalistFilename, inputFilenamePr
         (filename, genome) = line.split(tab)
         countStr = str(inputLineCounter)
 
-        logging.debug("Calculating checksum for %s",filename)
-        # Calculate the checksum to determine the filename for this data in the cache.
-        thisFile = open(filename,'rb')
-        fileHash = hashlib.sha256()
-        fileHash.update(thisFile.read())
-        checksum = str(fileHash.hexdigest())
-        thisFile.close()
-        logging.debug('Determined checksum for %s: %s', filename, checksum)
-
         thisRecord = {
             'count': countStr,
             'genome': genome.strip(),
@@ -126,8 +86,6 @@ def parseFastaInputFiles(fileToGenomeFilename,fastalistFilename, inputFilenamePr
             'jellyfishDB': inputFilenamePrefix + countStr + '.' + options.jellyfishSuffix,
             'kmers': inputFilenamePrefix + countStr + '.' + options.kmerSuffix,
             'kmersFiltered': options.kmerSuffix + '.' + inputFilenamePrefix + countStr, # Set by expectations of the rest of the parent script
-            'checksum': checksum,
-            'cacheId': cacheFileName(checksum, k),
         }
 
         # I would prefer the kmersFiltered name be as defined below to more accurately represent origin / processing.
@@ -147,12 +105,6 @@ def parseFastaInputFiles(fileToGenomeFilename,fastalistFilename, inputFilenamePr
     logging.info("Number of input sequences: %s", len(inputFiles))
 
     return inputFiles
-
-def getCachedFilteredKmers(fileData, ):
-    # If there is cached data for these files, copy the cached data into the final location
-    # and return a list of the files for which we did NOT find cached data (or an empty list
-    # if we got it all)
-    return fileData
 
 
 def convertInputFiles(inputFileList, mergeFastaReadsFilename):
@@ -314,22 +266,6 @@ def generateJellyfishDumps(inputFileList, jellyfishFilename, k, hashSize, numCPU
             jellyfishFilename,
             'count', '-C', '-o', file['jellyfishDB'], '-m', k, '-s', hashSize, '-t', numCPUs, file['tempFile'] ])
 
-
-def cacheFileName(checksum, k):
-    return (checksum + "." + str(k))
-        
-def cacheFilteredKmers(inputFiles, k, cacheDir):
-    if cacheDir == '':
-        # Caching disabled.
-        logging.info('Caching disabled due to --cachedir not set / set to the empty string')
-    else:
-        for file in inputFiles:
-            id = file['cacheId']
-            logging.debug('Cached filtered kmers from %s to %s.', file['kmersFiltered'] , kcache.cacheFileName(id, cacheDir, kcache.filteredKmersData))
-
-            shutil.copy(file['kmersFiltered'], kcache.cacheFileName(id, cacheDir, kcache.filteredKmersData))
-        # TODO FIXME DEBUG XXX We should shrink the cache to size here. - JN
-        
         
 
 ##################################
@@ -359,22 +295,7 @@ if __name__ == "__main__":
     logging.info('Parsing input fasta file')
     inputFiles = parseFastaInputFiles(options.fileToGenome,options.fastalist, options.outputPrefix, options.jellyfishSuffix, options.kmerSuffix, options.k)
 
-    if options.cachedir == '':
-        # Caching disabled
-        logging.info('Caching disabled, processing all %s input files.', len(inputFiles))
-        uncachedFiles = inputFiles
-    else:
-        # Cache specified.
-        logging.info('Checking cache for %s input files', len(inputFiles))
-        for file in inputFiles:
-            cacheFilename = kcache.cacheFileName(file['cacheId'], options.cachedir, kcache.filteredKmersData)
-            if os.access(cacheFilename,mode=os.R_OK):
-                # if the data is cached, copy it into place (why do math; it has already been done)
-                logging.info('%s found in cache, restoring cached data and skipping processing.', file['inputFile'])
-                shutil.copy(cacheFilename, file['kmersFiltered'])
-            else:
-                # We didn't find this data in the cache.
-                uncachedFiles.append(file)
+    uncachedFiles = inputFiles
 
     if len(uncachedFiles) > 0:
         # Convert input files into format appropriate for kSNP processing.
@@ -400,10 +321,6 @@ if __name__ == "__main__":
             else:
                 logging.debug("No filtering to do, renaming kmers file to filtered kmers filename for %s", file['tempFile'])
                 os.rename(file['kmers'],file['kmersFiltered'])
-
-        # Cache results (if possible; if cachedir set to empty string, this is a noop.
-        logging.debug("Caching results.  Files to cache: %s", dumpFiles)
-        cacheFilteredKmers(dumpFiles, options.k, options.cachedir)
 
     else: # We didn't find any uncached files
         logging.info('Cached data found for all %s input files, using cached data only.', len(inputFiles))

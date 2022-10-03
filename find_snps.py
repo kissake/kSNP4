@@ -13,8 +13,6 @@
 # Revised estimate is closer to 115bytes or even 33bytes per kmer.  Keep testing.
 # May be worth trying to crunch memory usage.  Should be doable.
 
-import ksnpCache as kcache
-
 # Import standard Python libraries for argument parsing, interacting with the
 # filesystem, and environment and time / date processing.
 import argparse as argparse
@@ -68,10 +66,6 @@ and also (with the overall list of SNPs):
     parser.add_argument('--fasta-suffix', action='store', help='The suffix to use for fasta files to output to mummer for position data', default='SNPs.fasta')
     parser.add_argument('--snp-suffix', action='store', help='The suffix to use for SNP files', default='SNPs')
     parser.add_argument('--snps-all', action='store', help='A set of SNPs output by a previous run, for comparing to this run.')
-    
-    # Add default cache-related options.
-    kcache.addCacheOptions(parser)
-
     parser.add_argument('--debug', action='store_true', help='Output diagnostic data to the screen using STDERR')
     parser.add_argument('--info', action='store_true', help='Output status information on STDERR', default=True)
     parser.add_argument('--quiet', action='store_true', help='Silence debug and other messages. (warnings only)')
