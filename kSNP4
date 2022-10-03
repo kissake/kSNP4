@@ -559,7 +559,7 @@ export KMERSPREFIX='kmers'
 #  
 
 
-"${GETFILTEREDKMERS}" "${FASTALIST}" "${MERGE_FASTA_READ}" "${K}" "${JELLYFISH}" "${HASHSIZE}" "${NUM_CPUS}" --cachedir "${CACHEDIR}" --maxcachebytes "${CACHESIZE}" "${FILE2GENOME}" "${FREQCHECK}" "${SPLITNAME}" kmers Jelly filtered --debug  || exit 1
+"${GETFILTEREDKMERS}" "${FASTALIST}" "${MERGE_FASTA_READ}" "${K}" "${JELLYFISH}" "${HASHSIZE}" "${NUM_CPUS}" "${FILE2GENOME}" "${FREQCHECK}" "${SPLITNAME}" kmers Jelly filtered --debug  || exit 1
 
 
 
