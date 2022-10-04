@@ -35,7 +35,7 @@ export KSNPPATH=`dirname "${0}"`
 # Set up paths to required scripts.  Permits us to change them in only one place.
 #############
 
-export ADD_PATHS="${KSNPPATH}/add_paths3"
+export ADD_PATHS="${KSNPPATH}/add_paths4"
 export LE2UNIX="${KSNPPATH}/LE2Unix"
 export CHECKFILENAMES="${KSNPPATH}/CheckFileNames"
 export MERGE_FASTA_READ="${KSNPPATH}/merge_fasta_reads3"
