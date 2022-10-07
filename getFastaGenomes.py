@@ -91,7 +91,7 @@ def getGenome(ID, accList, outDir, email):
 	#variables
 	numRep = 0 #number of replicons in the genome
 	fileName = ID +'.fna'
-	OUTFILE = open(fileName, 'w')
+	OUTFILE = open(fileName, 'wb')
 	#print(ID)
 	#print(accList)
 	#split accList into its components
@@ -100,7 +100,7 @@ def getGenome(ID, accList, outDir, email):
 	startTime = time.time()
 	for i in range(numRep):
 		result = EFetch(db="nuccore", acc = temp[i], rettype = "fasta", retmode = "text", email=email)
-		OUTFILE.write("{0}\n\n".format(result))
+		OUTFILE.write(result)
 	elapsedTime = time.time() - startTime
 	sys.stdout.write("Time to download {0} was {1:.2f} seconds.\n".format(fileName, elapsedTime))
 	OUTFILE.close()
