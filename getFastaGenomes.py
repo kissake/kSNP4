@@ -12,9 +12,61 @@ Example: getFastaGenomes -i ShortEcoliList.txt -o GenomeFiles -e myName@gmail.co
 #********************* MODULES**********************
 import sys
 import os
-from Bio import Entrez
 import time
+
+
+# Use the correct module based on the python version.
+if sys.version_info[0] == 2:
+	import httplib as httplib
+
+else: # More modern python
+	import http.client as httplib
+
+
 #******************* FUNCTION DEFINITIONS *******************
+def get(hostname, uri):
+	GET="GET"
+
+	connection = httplib.HTTPSConnection(hostname)
+
+	connection.request(GET, uri)
+	response = connection.getresponse()
+
+	data = response.read()
+
+	connection.close()
+
+	return (response.status, response.reason, data)
+
+
+def EFetch(acc, retmode="text", rettype="fasta", db="nuccore", email="ksnp-dev@kissake.net"):
+
+	eutilsHost = "eutils.ncbi.nlm.nih.gov"
+	efetchPrefix = "/entrez/eutils/efetch.fcgi?"
+	argSeparator = "&"
+
+	arguments={
+		"tool": "kSNP4",
+		"email": email,
+		"db": db,
+		"rettype": rettype,
+		"retmode": retmode,
+		"id": acc,
+	}
+
+	URI = efetchPrefix + argSeparator.join([ "=".join(item) for item in arguments.items() ])
+	time.sleep(0.34) # Sleep for 1/3 of a second here to enforce a rate limit of 3 requests per second.
+
+	(status, reason, fetched) = get(eutilsHost,URI)
+
+	if status != 200:
+		sys.stderr.write("HTTP Error %d: %s\n" % (status, reason))
+		sys.exit(1)
+
+	return fetched
+
+
+
 def readInfile(infileName):
 	#variables
 	genomesList = []
@@ -35,9 +87,8 @@ def readInfile(infileName):
 	INFILE.close()
 	return genomesList
 
-def getGenome(ID, accList, outDir):
+def getGenome(ID, accList, outDir, email):
 	#variables
-	handle='' # handle for Entrez.efetch
 	numRep = 0 #number of replicons in the genome
 	fileName = ID +'.fna'
 	OUTFILE = open(fileName, 'w')
@@ -48,8 +99,8 @@ def getGenome(ID, accList, outDir):
 	numRep = len(temp)
 	startTime = time.time()
 	for i in range(numRep):
-		handle = Entrez.efetch(db="nuccore", ID = temp[i], rettype = "fasta", retmode = "text")
-		OUTFILE.write("{0}\n\n".format(handle.read()))
+		result = EFetch(db="nuccore", acc = temp[i], rettype = "fasta", retmode = "text", email=email)
+		OUTFILE.write("{0}\n\n".format(result))
 	elapsedTime = time.time() - startTime
 	sys.stdout.write("Time to download {0} was {1:.2f} seconds.\n".format(fileName, elapsedTime))
 	OUTFILE.close()
@@ -75,27 +126,25 @@ for i in range(1, len(sys.argv)):
 #check that all required arguments have been entered on the command line
 if infileName == '':
 	sys.stdout.write('You must enter the infile name on the command line as -i infileName.\nQuitting the program now.\n')
-	sys.exit()
+	sys.exit(1)
 if outDir == '':
 	sys.stdout.write('You must enter the output directory name on the command line as -o outputDirectoryName.\nQuitting the program now.\n')
-	sys.exit()
+	sys.exit(1)
+
 if email == '':
 	sys.stdout.write('You must enter your email address on the command line as -e myself@someplace.com.\nQuitting the program now.\n')
-	sys.exit()
-	
-	
+	sys.exit(1)
+
+
 home = os.getcwd()
 
 #read the infile
 genomesList = readInfile(infileName)
 numGenomes = len(genomesList)
 
-#send the email address to NCBI
-Entrez.email = email
-
 #move to the outdir
 os.chdir(outDir)
 
 #download the fasta records from Entrez
 for i in range(numGenomes): #numGenomes
-	getGenome(genomesList[i][0], genomesList[i][1], outDir)
+	getGenome(genomesList[i][0], genomesList[i][1], outDir, email)
