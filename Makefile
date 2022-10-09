@@ -37,7 +37,7 @@ perl = $(wildcard *.pl)
 perlbin = $(patsubst %.pl,binaries/%,$(wildcard *.pl))
 
 
-shellscripts = binaries/kSNP4 binaries/buildtree binaries/extractNthLocus4 binaries/selectNodeAnnotations4 binaries/installkSNP
+shellscripts = binaries/kSNP4 binaries/buildtree binaries/extractNthLocus4 binaries/selectNodeAnnotations4 binaries/installkSNP binaries/getFastaGenomes get_genbank_file4
 
 
 dependencies = binaries/FastTreeMP binaries/parsimonator binaries/mummer binaries/consense binaries/jellyfish
@@ -130,7 +130,7 @@ kSNP$(ver).zip: $(packagedir)
 
 # Build perl scripts into binaries using pp, a tool from CPAN in the PAR::Packer module
 binaries/%: %.pl
-	pp -o $@ $<
+	pp -c -x -o $@ $<
 
 #################################################################
 # Python
