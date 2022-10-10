@@ -120,8 +120,8 @@ def ESearch(searchTerm, db="nuccore", email="ksnp-dev@kissake.net", retmax=100):
 def extractAccNum(line):
 	separator = '|'
 	prefix = '>'
-        genbank = 'gb'
-        refseq = 'ref'
+	genbank = 'gb'
+	refseq = 'ref'
 	# Fails for text: 'gi|1002344102|gb|LPTZ01001107.1|' output as accnum
 
 	temp = line.split()
@@ -135,14 +135,14 @@ def extractAccNum(line):
 		# https://en.wikipedia.org/wiki/FASTA_format
 		# so we assume it has a 'gb' reference.
 		idParts = ident.split(separator)
-                if genbank in idParts:
-		        gbAcc = idParts.index(genbank) + 1
-		        return idParts[gbAcc]
-                elif refseq in idParts:
-                        refAcc = idParts.index(refseq) + 1
-                        return idParts[refAcc]
-                else:
-                        return None
+		if genbank in idParts:
+			gbAcc = idParts.index(genbank) + 1
+			return idParts[gbAcc]
+		elif refseq in idParts:
+			refAcc = idParts.index(refseq) + 1
+			return idParts[refAcc]
+		else:
+			return None
 
 #********************** Main *************************
 #variables
