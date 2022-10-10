@@ -166,7 +166,7 @@ for line in INFILE:
 INFILE.close()
 
 
-OUTFILE = open('genbank_from_NCBI.gbk', 'a',)
+OUTFILE = open('genbank_from_NCBI.gbk', 'ab',)
 
 for accnum in AccNumList: #for each accession number
 	#find the NCBI ID for the accnum
@@ -185,14 +185,16 @@ for accnum in AccNumList: #for each accession number
 		temp = text.split(b'\n')
 		for j in range(len(temp)):
 			if temp[j].startswith(b"ORIGIN"):
-				OUTFILE.write('{0}\n'.format(temp[j]))
-				OUTFILE.write('//\n\n')
+				OUTFILE.write(temp[j])
+				OUTFILE.write(b'\n')
+				OUTFILE.write(b'//\n\n')
 				break
 			else:
-				 # download the accnum file
-				 OUTFILE.write('{0}\n'.format(temp[j]))
+				# download the accnum file
+				OUTFILE.write(temp[j])
+				OUTFILE.write(b'\n')
 
-		OUTFILE.write('//\n\n')
+		OUTFILE.write(b'//\n\n')
 	time.sleep(1)
 
 OUTFILE.close()
