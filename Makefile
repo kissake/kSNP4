@@ -37,7 +37,7 @@ perl = $(wildcard *.pl)
 perlbin = $(patsubst %.pl,binaries/%,$(wildcard *.pl))
 
 
-shellscripts = binaries/kSNP4 binaries/buildtree binaries/extractNthLocus4 binaries/selectNodeAnnotations4 binaries/installkSNP binaries/getFastaGenomes get_genbank_file4
+shellscripts = binaries/kSNP4 binaries/buildtree binaries/extractNthLocus4 binaries/selectNodeAnnotations4 binaries/installkSNP binaries/getFastaGenomes binaries/get_genbank_file4
 
 
 dependencies = binaries/FastTreeMP binaries/parsimonator binaries/mummer binaries/consense binaries/jellyfish
