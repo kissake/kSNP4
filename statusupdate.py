@@ -8,11 +8,9 @@ def clearLine():
 
     # Not enough backspaces means we don't erase all the text.  Too many
     # doesn't really hurt?
-    print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",end="")
-    print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",end="")
-    print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",end="")
-    print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",end="")
-    print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",end="")
+
+    clearstring = " \b\b" * 20
+    print(clearstring * 10,end="")
 
 
 def writeElapsed(seconds):
@@ -33,24 +31,31 @@ def writePhase(phaseNum, phaseTotal, phaseLabel):
     print("(%i/%i) %s"%(phaseNum, phaseTotal, phaseLabel), end="")
 
 
-def updateLine(seconds, phaseNum, phaseTotal, phaseLabel, subphaseNum, subphaseTotal, subphaseLabel):
+def updateLine(seconds, phaseNum, phaseTotal, phaseLabel, subphaseNum=None, subphaseTotal=None, subphaseLabel=None):
     clearLine()
     writeElapsed(seconds)
     writeSeparator()
     writePhase(phaseNum, phaseTotal, phaseLabel)
-    writeSeparator()
-    writePhase(subphaseNum, subphaseTotal, subphaseLabel)
+    if subphaseTotal != None:
+        writeSeparator()
+        writePhase(subphaseNum, subphaseTotal, subphaseLabel)
 
 
 
 if __name__ == "__main__":
 
+    sys.stderr.write(" ".join(sys.argv) + "\n")
     secondsDuration = int( sys.argv[1] )
-    phaseNumber = int(sys.argv[2])
-    phaseName = sys.argv[3]
-    totalPhases = 10 # Move this to an argument the first time it needs to change.
-    subphase = int(sys.argv[4])
-    subphaseTotal = int(sys.argv[5])
-    subphaseLabel = sys.argv[6]
+    phaseTotal = int(sys.argv[2])
+    phaseNumber = int(sys.argv[3])
+    phaseName = sys.argv[4]
+    if len(sys.argv) > 6:
+        subphaseTotal = int(sys.argv[5])
+        subphase = int(sys.argv[6])
+        subphaseLabel = sys.argv[7]
+        
+        updateLine(secondsDuration, phaseNumber, phaseTotal, phaseName, subphase, subphaseTotal, subphaseLabel)
 
-    updateLine(secondsDuration, phaseNumber, totalPhases, phaseName, subphase, subphaseTotal, subphaseLabel)
+    else:
+        
+        updateLine(secondsDuration, phaseNumber, phaseTotal, phaseName)
