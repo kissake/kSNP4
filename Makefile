@@ -37,7 +37,7 @@ perl = $(wildcard *.pl)
 perlbin = $(patsubst %.pl,binaries/%,$(wildcard *.pl))
 
 
-shellscripts = binaries/kSNP4 binaries/buildtree binaries/extractNthLocus4 binaries/selectNodeAnnotations4 binaries/installkSNP binaries/getFastaGenomes binaries/get_genbank_file4
+shellscripts = binaries/kSNP4 binaries/buildtree binaries/extractNthLocus4 binaries/selectNodeAnnotations4 binaries/installkSNP binaries/getFastaGenomes binaries/getFastaGenomes_python binaries/get_genbank_file4
 
 
 dependencies = binaries/FastTreeMP binaries/parsimonator binaries/mummer binaries/consense binaries/jellyfish
@@ -279,11 +279,11 @@ jellyfish: $(download_cache)/jellyfish-src.tgz
 
 $(download_cache)/jellyfish-src.tgz:
 	mkdir -p $(download_cache)
-	curl -L "https://github.com/gmarcais/Jellyfish/releases/download/v2.3.0/jellyfish-2.3.0.tar.gz" >$@
+	curl -L "https://github.com/gmarcais/Jellyfish/releases/download/v2.2.10/jellyfish-2.2.10.tar.gz" >$@
 
 $(download_cache)/jellyfish:
 	mkdir -p $(download_cache)
-	curl -L "https://github.com/gmarcais/Jellyfish/releases/download/v2.3.0/jellyfish-linux" >$@
+	curl -L "https://github.com/gmarcais/Jellyfish/releases/download/v2.2.10/jellyfish-linux" >$@
 
 
 Examples: $(download_cache)/Examples.zip
