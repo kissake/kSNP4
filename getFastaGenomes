@@ -1,0 +1,15 @@
+#!/bin/bash
+
+
+# Select a python to use if there is no system binary referenced by 'python'
+PYTHON=`which python`
+if [ -z "${PYTHON}" ]
+then
+    PYTHON=`which python3`
+fi
+if [ -z "${PYTHON}" ]
+then
+    PYTHON=`which python2`
+fi
+
+"${PYTHON}" "${0}_python" "${@}"
