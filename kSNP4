@@ -475,6 +475,22 @@ fi
 
 echo "Number CPUs: ${NUM_CPUS}"
 
+# Select a python to use if there is no system binary referenced by 'python'
+PYTHON=`which python`
+if [ -z "${PYTHON}" ]
+then
+    PYTHON=`which python3`
+fi
+if [ -z "${PYTHON}" ]
+then
+    PYTHON=`which python2`
+fi
+
+echo "Python version to be used:"
+${PYTHON} --version
+
+
+
 echo "SNPS_ALL_INPUT=${SNPS_ALL_INPUT}"
 echo "GENBANKFILEINPUT=${GENBANKFILEINPUT}"
 echo "CORE=${CORE}"
@@ -1146,7 +1162,7 @@ then
 	    let COUNT="${COUNT}"+1
 	    "${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 8 "Getting annotation data from NCBI" "${ANNOTATIONSCOUNT}" "${COUNT}" "${GENOME}" >&5 
 
-	    "${GETGENBANKFILE}" "${FILE}"
+	    "${PYTHON}" "${GETGENBANKFILE}" "${FILE}"
 	    fgrep ">" "${FILE}" | sed -e "s/^>/>${GENOME} /" >> "${ANNOTATELISTHEADERS}"
 	fi
     done
