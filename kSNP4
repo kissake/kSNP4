@@ -77,6 +77,7 @@ export FREQCHECK="${KSNPPATH}/inline_frequency_check"
 export PARTITIONKMERS="${KSNPPATH}/partitionKmers"
 export FINDSNPS="${KSNPPATH}/find_snps"
 export GUESSPARTITION="${KSNPPATH}/guessPartition"
+export STATUSUPDATE="${KSNPPATH}/statusupdate"
 
 
 
@@ -293,10 +294,6 @@ do
 
 	-debug)
 	    DEBUG=1
-	    # Same as specifying -x on the shell shebang above.
-	    set -o xtrace
-	    # Same as specifying -v on the shell shebang above.
-	    set -o verbose
 	    shift # Argument
 	    ;;
 
@@ -409,6 +406,8 @@ fi
 cd "${DIR}"
 
 
+
+
 # If a cache directory was specified and does not exist, create it
 if [ -n "${CACHEDIR}" -a ! -d "${CACHEDIR}" ]
 then
@@ -485,6 +484,32 @@ echo "VCF=${VCF}"
 echo "DEBUG=${DEBUG}"
 
 
+###############
+# Output control
+###############
+
+
+# Redirect file descriptors 11 and 12 to stdout and stderr respectively, so that
+# we don't lose those file descriptors entirely.
+exec 5>&1
+exec 6>&2
+
+if [ 1 == "${DEBUG}" ]
+then
+    # Same as specifying -x on the shell shebang above.
+    set -o xtrace
+    # Same as specifying -v on the shell shebang above.
+    set -o verbose
+else
+    # Output verbose output to standard file.
+    exec >> kSNP_verbose.log
+    exec 2>> kSNP_verbose.log    
+fi
+
+
+
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 1 "Preprocessing" >&5 
+
 
 
 ### Preprocess FASTA input file.
@@ -558,6 +583,8 @@ export KMERSPREFIX='kmers'
 #  one file for each entry in $FILE2GENOME named kmers.<filename> (e.g. kmers.fsplit0)
 #  
 
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 2 "Running jellyfish to get kmer counts" >&5 
+
 
 "${GETFILTEREDKMERS}" "${FASTALIST}" "${MERGE_FASTA_READ}" "${K}" "${JELLYFISH}" "${HASHSIZE}" "${NUM_CPUS}" "${FILE2GENOME}" "${FREQCHECK}" "${SPLITNAME}" kmers Jelly filtered --debug  || exit 1
 
@@ -595,6 +622,9 @@ PARTITIONSUFFIX='.part'
 SNPFASTAS='.SNPs.fasta'
 date
 
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 3 "Partitioning kmer counts for parallelization" >&5 
+
+
 "${GUESSPARTITION}" --input kmers.fsplit0 "${NUMPARTS}" > "${PARTITIONS}"
 
 date
@@ -608,6 +638,7 @@ date
 
 echo "Finished partitioning new kmer files."
 
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 4 "Finding SNPs" 4 1 "Generating SNPs within partitions" >&5 
 
 
 SNPS_ALL_DATA="input_SNPs"
@@ -677,6 +708,9 @@ else
 fi
 
 
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 4 "Finding SNPs" 4 2 "Combining partitions into FASTA files for mummer" >&5 
+
+
 # Combine all of the parts for a given genome into a single .fasta file for input into mummer.
 
 cat "${FILE2GENOME}" | while read FILE REST
@@ -694,6 +728,7 @@ date
 echo "Re-combined SNP fasta files for input into mummer"
 date
 
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 4 "Finding SNPs" 4 3 "Combining partitions into complete list of SNPs found" >&5 
 
 
 # Combine all SNPs found into a single SNPs file.
@@ -713,6 +748,7 @@ done
 
 
 date
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 4 "Finding SNPs" 4 4 "Done finding SNPs" >&5 
 
 
 echo "Re-combined SNP fasta files for input into mummer"
@@ -732,8 +768,9 @@ date
 
 
 
+ANNOTATIONSCOUNT=`cat "${ANNOTATELIST}" | wc -l`
 
-#    cat "${KMERS}"*"${SNPFASTAS}" > "${KMERS}${SNPFASTAS}"
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 5 "Running mummer to find SNP positions for annotation" "${ANNOTATIONSCOUNT}" 0 "Starting" >&5 
 
 date
 
@@ -748,12 +785,18 @@ then
 	[ -e "${PARSEMUMMERCMDS}" ] && rm "${PARSEMUMMERCMDS}"
 	touch "${MUMMERCMDS}" "${PARSEMUMMERCMDS}"
 
+	COUNT=0
+	
 	cat "${ANNOTATELIST}" | while read GENOME
 	do
 	    TEST=`grep -w "${GENOME}" "${FILE2GENOME}" | wc -l`
 	    FILE=`grep -w "${GENOME}" "${FILE2GENOME}" | awk '{print $1}'`
 	    GENOMEDIRECTORY="${DIRPREFIX}.${FILE}"
 
+	    let COUNT="${COUNT}"+1
+	    "${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 5 "Running mummer to find SNP positions for annotation" "${ANNOTATIONSCOUNT}" "${COUNT}" "${GENOME}" >&5 
+
+	    
 	    if [ 0 -lt "${TEST}" ]
 	    then
 		KMERS="${KMERSPREFIX}.${FILE}"
@@ -793,8 +836,10 @@ then
 fi
 
 
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 5 "Running mummer to find SNP positions for annotation" "${ANNOTATIONSCOUNT}" "${ANNOTATIONSCOUNT}" "Done" >&5 
 
 
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 6 "Processing SNPs data" 4 1 "Adding position data to all_SNPs" >&5 
 
 export ALLSNPSUNSORTED="all_SNPs_unsorted"
 export ALLSNPSSORTED="all_SNPs_sorted"
@@ -839,8 +884,13 @@ then
     awk -F'\011'  '{print $2 "\t" $3 "\t" $4  "\t" $5 "\t" $6 "\t" $7}' "${SNPS_ALL_INPUT}" >> "${ALLSNPSUNSORTED}"
 fi
 
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 6 "Processing SNPs data" 4 2 "Sorting SNPs" >&5 
+
 # Sort the resulting SNPs file.
 sort -u "${ALLSNPSUNSORTED}" > "${ALLSNPSSORTED}"
+
+
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 6 "Processing SNPs data" 4 3 "Number and label SNPs" >&5 
 
 
 export ALLSNPSSORTEDLABELED="all_SNPs_sorted_labelLoci"
@@ -853,6 +903,8 @@ export SNPSALLOUTPUT="SNPs_all"
 
 "${RENAMEFROMTABLE}" "${ALLSNPSSORTEDLABELED}" "${FILE2GENOME}" "${SNPSALLOUTPUT}"
 
+
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 6 "Processing SNPs data" 4 4 "Creating VCF file." >&5 
 
 
 # Set reference genome for vcf file to the be first finished genome, if this is empty, then set it to be the first genome in the input fasta file.
@@ -959,9 +1011,17 @@ then
    TREESTOBUILD="${TREESTOBUILD} NJ"
 fi
 
+TREETYPES=`echo ${TREESTOBUILD} | wc -w`
+let TREETYPES="${TREETYPES}"+1
+COUNT=0
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 7 "Generating phylogenic trees" "${TREETYPES}" 0 "Setup" >&5 
+
+
 for THISTREE in ${TREESTOBUILD}    # Note: No quotes because we want the spaces to be separators between types of trees
 do
-    
+    let COUNT="${COUNT}"+1
+    "${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 7 "Generating phylogenic trees" "${TREETYPES}" "${COUNT}" "${THISTREE}" >&5 
+
     # Build the tree from all the SNPs.
     "${SNPSTOFASTAMATRIX}" "${SNPSALLOUTPUT}" "${SNPSALLMATRIXFASTA}" "${SNPSALLMATRIX}"
     
@@ -1004,6 +1064,12 @@ do
     fi
 done
 
+
+let COUNT="${COUNT}"+1
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 7 "Generating phylogenic trees" "${TREETYPES}" "${COUNT}" "Generating unresolved clusters" >&5 
+
+
+
 ### Copy default tree files to default tree names:
 for EACH in tree tree_AlleleCounts tree_tipAlleleCounts
 do
@@ -1021,6 +1087,7 @@ export UNRESOLVEDCLUSTERS="unresolved_clusters"
 # tre.parsimony.tre missing.
 "${FINDUNRESOLVEDCLUSTERS}" "${SNPSALLPARSIMONYTREE}" > "${UNRESOLVEDCLUSTERS}"
 
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 7 "Generating phylogenic trees" "${TREETYPES}" "${TREETYPES}" "Done" >&5 
 
 #############
 # FINISHED Generate trees
@@ -1043,6 +1110,7 @@ export UNRESOLVEDCLUSTERS="unresolved_clusters"
 #############
 #############
 
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 8 "Getting annotation data from NCBI" ${ANNOTATIONSCOUNT} 0 "Starting" >&5 
 
 ########
 # find proteins where SNPs land, codons, amino acids, and identify nonsynonymous SNPs
@@ -1068,19 +1136,27 @@ then
 
     cat "${ANNOTATELIST}" | while read GENOME
     do
+	
 	FILE_CHECK=`grep -w  "${GENOME}" "${FASTALIST}"  | wc -l`
 	if [ 0 -lt "${FILE_CHECK}" ]
 	then
 	    FILE=`grep -w  "${GENOME}" "${FASTALIST}"  | awk -F'\011' '{print $1}'`
 	    echo "${FILE}"
-	    "${GETGENBANKFILE}" "${FILE}" "genbank_from_NCBI.gbk.${COUNT}" || true  # This program has a mandatory exit(1), causing errors under some circumstances.
+	    
+	    let COUNT="${COUNT}"+1
+	    "${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 8 "Getting annotation data from NCBI" "${ANNOTATIONSCOUNT}" "${COUNT}" "${GENOME}" >&5 
+
+	    "${GETGENBANKFILE}" "${FILE}"
 	    fgrep ">" "${FILE}" | sed -e "s/^>/>${GENOME} /" >> "${ANNOTATELISTHEADERS}"
-	    COUNT=`expr "${COUNT}" + 1` # Increment $COUNT
 	fi
     done
-    
+
+    "${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 8 "Getting annotation data from NCBI" ${ANNOTATIONSCOUNT} ${ANNOTATIONSCOUNT} "Done" >&5 
+
 	
     # cat genbank_from_NCBI.gbk.* | grep -v BioProject  > genbank_from_NCBI.gbk
+
+    "${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 9 "Running ParAnn to apply annotation data to SNPs" >&5 
 
     #run ParAnn
     "${PARANN}"
@@ -1089,6 +1165,7 @@ then
 fi
 
 
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 10 "Cleanup" 1 0 "Starting" >&5 
 
 #############
 #############
@@ -1164,6 +1241,11 @@ mv genbank_from_NCBI.gbk.* "${TEMPORARYFILES}/" || true
 
 # We want the previously official tree name to be canonical.
 mv "${SNPSALLPARSIMONYTREE}" "${TEMPORARYFILES}/" || true
+
+
+"${STATUSUPDATE}" "$((`date +%s`-${STARTSECONDS}))" 10 10 "Cleanup" 1 1 "Done" >&5 
+
+echo >&5
 
 
 # If we are missing expected results, warn the user.
