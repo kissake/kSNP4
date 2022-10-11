@@ -42,11 +42,11 @@ def partitionKmers(filename, fileSuffix, partitionsList, sortColumn=1, bufferSiz
     for partition in partitionsList:
         outFilesList.append(filename + fileSuffix + str(count))
         # Open the just appended filename for output.
-        outFiles[partition] = open(outFilesList[-1],'w', bufferSize)
+        outFiles[partition] = open(outFilesList[-1],'w', buffering=bufferSize)
         logging.debug("Opened partition file: %s", filename + fileSuffix + str(count))
         # Set the output file to NOT use line buffering because it results
         # in WAY too many writes.
-        outFiles[partition].reconfigure(line_buffering=False)
+        # outFiles[partition].reconfigure(line_buffering=False)
         count = count + 1
 
     block = input.readlines(bufferSize)
