@@ -315,8 +315,8 @@ def findSNPs(genomeList, fastaSuffix, snpSuffix, snpsAll=None):
             'snp':   open(genome + snpSuffix, 'w'),
             }
         # Avoid the cost of flushing at the end of every line.
-        outputFiles[genome]['fasta'].reconfigure(line_buffering=False)
-        outputFiles[genome]['snp'].reconfigure(line_buffering=False)
+        logging.debug("FASTA output file line_buffering: %s", outputFiles[genome]['fasta'].line_buffering)
+        logging.debug("SNP output file line_buffering: %s", outputFiles[genome]['snp'].line_buffering)
     
     # dumpBucket(thisBucket, genomeBits, genomeList, SNPsFile, k)
     (totalSNPs, writtenKmers) = dumpBucket(thisBucket, genomeBits, outputFiles, k)
