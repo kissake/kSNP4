@@ -6,7 +6,6 @@
 no warnings 'deprecated';
 use Bio::TreeIO::newick;
 use Net::FTP::Tiny;
-use IO::Socket::SSL;
 use Bio::TreeIO;
 
 my $treefile=$ARGV[0];
