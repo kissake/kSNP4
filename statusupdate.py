@@ -31,8 +31,9 @@ def writePhase(phaseNum, phaseTotal, phaseLabel):
     print("(%i/%i) %s"%(phaseNum, phaseTotal, phaseLabel), end="")
 
 
-def updateLine(seconds, phaseNum, phaseTotal, phaseLabel, subphaseNum=None, subphaseTotal=None, subphaseLabel=None):
-    clearLine()
+def updateLine(seconds, phaseNum, phaseTotal, phaseLabel, subphaseNum=None, subphaseTotal=None, subphaseLabel=None, overwrite=True):
+    if overwrite:
+        clearLine()
     writeElapsed(seconds)
     writeSeparator()
     writePhase(phaseNum, phaseTotal, phaseLabel)
@@ -40,10 +41,14 @@ def updateLine(seconds, phaseNum, phaseTotal, phaseLabel, subphaseNum=None, subp
         writeSeparator()
         writePhase(subphaseNum, subphaseTotal, subphaseLabel)
 
+    if not overwrite:
+        print()
+
 
 
 if __name__ == "__main__":
 
+    overwrite = False
     sys.stderr.write(" ".join(sys.argv) + "\n")
     secondsDuration = int( sys.argv[1] )
     phaseTotal = int(sys.argv[2])
@@ -54,8 +59,8 @@ if __name__ == "__main__":
         subphase = int(sys.argv[6])
         subphaseLabel = sys.argv[7]
         
-        updateLine(secondsDuration, phaseNumber, phaseTotal, phaseName, subphase, subphaseTotal, subphaseLabel)
+        updateLine(secondsDuration, phaseNumber, phaseTotal, phaseName, subphase, subphaseTotal, subphaseLabel, overwrite=overwrite)
 
     else:
         
-        updateLine(secondsDuration, phaseNumber, phaseTotal, phaseName)
+        updateLine(secondsDuration, phaseNumber, phaseTotal, phaseName, overwrite=overwrite)
