@@ -1289,7 +1289,7 @@ let HOURS="${TOTALSECONDS}/3600"
 let TOTALMINUTES="${TOTALSECONDS}/60"
 let MINUTES="${TOTALMINUTES}-${HOURS}*60"
 let SECS="${TOTALSECONDS}-(${TOTALMINUTES}*60)"
-echo "Time used: ${HOURS}:${MINUTES}:${SECS}" >&5
+printf "Time used: %02d:%02d:%02d\n" "${HOURS}" "${MINUTES}" "${SECS}" >&5
 
 
 exit 0
