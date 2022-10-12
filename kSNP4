@@ -1267,8 +1267,8 @@ echo >&5
 # If we are missing expected results, warn the user.
 if [ ! -s SNPs_all -o ! -s tree.parsimony.tre -o ! -s tree_AlleleCounts.parsimony.tre -o ! -s unresolved_clusters -o ! -s "${COUNTSNPS}" ]
 then
-    echo "WARNING: The output directory is missing some expected files.  You may"
-    echo "consider re-running kSNP with -debug to get more useful details."
+    echo "WARNING: The output directory is missing some expected files.  You may" >&5
+    echo "consider re-running kSNP with -debug to get more useful details." >&5
 fi
 
    
@@ -1276,7 +1276,7 @@ if [ "${DEBUG}" -ne 1 ]
 then
     rm -r "${TEMPORARYFILES}"
 else
-    echo "Debug was: ${DEBUG}, not removing temporary files in ${TEMPORARYFILES}"
+    echo "Debug was: ${DEBUG}, not removing temporary files in ${TEMPORARYFILES}" >&5
 fi
 
 # Put the debug output into the current working directory (the run directory)
@@ -1284,15 +1284,12 @@ fi
 # echo
 # echo "Review the run details in ${DIR}/kSNP.output"
 
+TOTALSECONDS="$((`date +%s`-${STARTSECONDS}))"
+let HOURS="${TOTALSECONDS}/3600"
+let TOTALMINUTES="${TOTALSECONDS}/60"
+let MINUTES="${TOTALMINUTES}-${HOURS}*60"
+let SECS="${TOTALSECONDS}-(${TOTALMINUTES}*60)"
+echo "Time used: ${HOURS}:${MINUTES}:${SECS}" >&5
+
+
 exit 0
-
-
-
-#############
-#############
-#
-# kSNP rewrite in Bash / Bourne shell stops here.
-#
-#############
-#############
-
