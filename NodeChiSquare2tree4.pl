@@ -15,26 +15,42 @@ use Bio::TreeIO::newick;
 use LWP::Simple;
 use Getopt::Long; 
 
-my $max_probability=0.0001;
-my $tree_type="parsimony"; #changed from version 3
+my $max_probability=0;
+my $intree="";
 my $help="";
 
-GetOptions ( "t:s" =>\$tree_type,
+GetOptions ( "f:s" =>\$intree,
              "p:f" =>\$max_probability,
 	     "h" =>\$help);
 
+my $nodeSNPcountfile = $intree;
+$nodeSNPcountfile =~ s/tree_AlleleCounts(.*).tre/Node_SNP_counts$1/;
+
+if ($intree eq "tree_AlleleCounts.parsimony.tre"){
+    $nodeSNPcountfile = "Node_SNP_counts.SNPs_all.parsimony"
+}
+
+if ( not -e $intree or not -e $nodeSNPcountfile ){
+    $help = 1;
+    print "ERROR: Missing one or both of '$intree' or '$nodeSNPcountfile'.  Both are required.\n\n";
+}
+
+if ( $max_probability == 0){
+    $help = 1;
+    print "ERROR: Missing maximum probability option -p.\n\n"
+}
+
 if ($help) {
-    print "Usage: NodeChiSquare2tree -p 0.001 -t parsimony\n";
-    print "or:    NodeChiSquare2tree\n";
-    print "-p maximum Chi Sq probability for assigning a SNP to a node.\n";
-    print "-t tree type from kSNP output, possible values are ML, parsimony, core, or 'majority0.5' \n";
-    print "-p and -t are optional. Default is -p 0.0001 -t parsimony\n";
+    print "Usage: NodeChiSquare2tree -p 0.001 -f tree_AlleleCounts.SNPs_all.parsimony.tre\n";
+    print "\n";
+    print " -f\tTree file to use as input (required) (assumes there is a corresponding Node_SNP_counts file) \n";
+    print " -p\tMaximum Chi Sq probability for assigning a SNP to a node. (required)\n";
+    print "\n";
     exit;
 }
 
-my $nodeSNPcountfile="Node_SNP_counts.".$tree_type;  #changed from version 3
-my $intree="tree_AlleleCounts.".$tree_type.".tre"; #changed from version 3
-my $outtree="tree_ChiSqAlleleCounts.".$tree_type.".tre";
+my $outtree=$intree;
+$outtree=~s/tree_AlleleCounts/tree_ChiSqAlleleCounts/;
 
 my $thisDate = localtime;
 my $beginTime = time;
