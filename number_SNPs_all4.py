@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 
 # Cannot find this command: number_SNPs_all3 - JN
 # It exists in the binary distribution. - JN

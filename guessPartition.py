@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 
 '''
 usage: guessPartition.py [-h] [--all] [--samples SAMPLES] [--input INPUT] [--debug] partitions
@@ -77,7 +77,7 @@ def getKeygenFunction(N):
     if N == 1:
         return lambda a: a
     else:
-        return lambda a: a[0] + a[-1] + getKeygenFunction(N-1)(a[1:-1])
+        return lambda a: a[0] + a[-1] + getKeygen(N-1)(a[1:-1])
 
 
 

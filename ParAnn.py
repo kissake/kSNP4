@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 """
 Description: Parses the the genbank_from_NCBI.gbk and SNPs_all files written by kSNP3

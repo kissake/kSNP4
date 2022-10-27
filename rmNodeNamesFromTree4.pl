@@ -5,7 +5,7 @@
 
 no warnings 'deprecated';
 use Bio::TreeIO;
-#use IO::Socket::SSL;
+use IO::Socket::SSL;
 use Bio::TreeIO::newick;
 
 
