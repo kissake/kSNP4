@@ -36,18 +36,10 @@ export KSNPPATH=`dirname "${0}"`
 #############
 
 export ADD_PATHS="${KSNPPATH}/add_paths4"
-export LE2UNIX="${KSNPPATH}/LE2Unix"
 export CHECKFILENAMES="${KSNPPATH}/CheckFileNames"
 export MERGE_FASTA_READ="${KSNPPATH}/merge_fasta_reads3"
 export JELLYFISH="${KSNPPATH}/jellyfish"
-export GETQUANTILE="${KSNPPATH}/get_quantile3"
-export SUBSETMERS="${KSNPPATH}/subset_mers4.py"
 export DELETEALLELECONFLICTS="${KSNPPATH}/delete_allele_conflicts3"
-export PARALLELCOMMANDS="${KSNPPATH}/parallel_commands3"
-export SUBSETMERLIST="${KSNPPATH}/subset_mer_list4.py"
-export SNPSTOFASTAQUERY="${KSNPPATH}/SNPs2fastaQuery3"
-export PICKSNPSFROMKMERS="${KSNPPATH}/pick_snps_from_kmer_genome_counts3"
-export FINDALLELE="${KSNPPATH}/find_allele3"
 export MUMMER="${KSNPPATH}/mummer"
 export PARSEMUMMER="${KSNPPATH}/parse_mummer4kSNP3"
 export NUMBERSNPS="${KSNPPATH}/number_SNPs_all4"
@@ -68,7 +60,6 @@ export DISTANCETREE="${KSNPPATH}/distance_tree3"
 export FINDUNRESOLVEDCLUSTERS="${KSNPPATH}/find_unresolved_clusters3"
 export GETGENBANKFILE="${KSNPPATH}/get_genbank_file4"
 export ANNOTATESNPFROMGENBANK="${KSNPPATH}/annotate_SNPs_from_genbankFiles3"
-export PARSEPROTEINANNOTATIONCOUNTS="${KSNPPATH}/parse_protein_annotation_counts3"
 export PARANN="${KSNPPATH}/ParAnn"
 export BUILDTREE="${KSNPPATH}/buildtree"
 export SUMMARIZEANNOTATION="${KSNPPATH}/summarize_annotation"
@@ -534,8 +525,6 @@ fi
 # Copy the original input file ${FASTALISTINPUT} to a specified name in the output directory for easier reference
 cp -f "${FASTALISTINPUT}" "${FASTALIST}"
 
-# Process each file listed in the input file to correct the line endings if needed and if possible
-"${LE2UNIX}" "${FASTALIST}"
 
 # Then process the "${FASTALIST}" file to correct its line-endings.
 perl -i -pe 's/\015\012/\012/g' "${FASTALIST}"    # Windows to unix
@@ -844,8 +833,6 @@ then
 
 	# Mummer is capable of running in sequence on multiple "query" files (i.e. $GENOMEFILE). I suspect we aren't doing this
 	# so that we can parallelize the processes.  Also, bucket size has an impact on mummer memory use.
-	# "${PARALLELCOMMANDS}" "${NUM_CPUS}" "${MUMMERCMDS}"
-	# "${PARALLELCOMMANDS}" "${NUM_CPUS}" "${PARSEMUMMERCMDS}"
 
 	date
 	echo "Finished finding SNP positions in finished genomes using mummer."
