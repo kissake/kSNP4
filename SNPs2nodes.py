@@ -128,9 +128,9 @@ if __name__ == "__main__":
     options = parseCommandline()
 
     if options.debug:
-        logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+        logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', datefmt='%Y-%m-%dT%H:%M:%S', level=logging.DEBUG)
     elif options.info:
-        logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+        logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', datefmt='%Y-%m-%dT%H:%M:%S', level=logging.INFO)
     else:
         logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.WARN)
             
