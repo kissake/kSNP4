@@ -495,22 +495,34 @@ if __name__ == "__main__":
 
           
     # Processing
+    logging.info("SNPs2nodes starting.")
 
     clades, IDsInNodes, genomeBits = inputClades(CladeStructuresFile)
+    logging.info("Loaded nodes for tree of %s genomes",  len(genomeBits))
+                    
 
     core, group, gl, rootScore, SNPsCount, locusToLocusID = groupNodes(SNPsFile, clades, IDsInNodes, genomeBits)
+    logging.info("Loaded %s SNPs, %s possible roots scored.", SNPsCount, len(rootScore))
           
     root, maxScore = findBestRoot(rootScore)
+    logging.info("Found the best root (%s) with score %s.", root, maxScore)
     
     writeHomoplasticSNPCounts(HomoplasticSNPsCountFile, SNPsCount, maxScore)
+    logging.info("Finished writing %s", HomoplasticSNPsCountFile)
 
     clusters = writeNodeSigCounts(SigCountsFile, clades, root, group, genomeBits)
+    logging.info("Finished writing %s", SigCountsFile)
 
     nodeCount = len(clades[root]) # The number of distinct nodes within the tree.
 
     clusters = writeHomoplasyGroups(HomoplasyGroupsFile, group, IDsInNodes, root, clusters, nodeCount)
+    logging.info("Finished writing %s", HomoplasyGroupsFile)
 
     writeClusterInfo(ClusterInfoFile, gl, clusters, core, locusToLocusID)
+    logging.info("Finished writing %s", ClusterInfoFile)
 
     writeRerootedTree(TreeFile, root)
+    logging.info("Finished writing %s", TreeFile)
+
+    logging.info("SNPs2nodes finished.")
     
