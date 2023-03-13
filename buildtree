@@ -160,7 +160,7 @@ if [ -s "${NODELABELFILE}" ]  # If the node label file was generated successfull
 then
     
     echo "Placing SNPs on nodes ${SNPSFILE} tree"
-    "${SNPSTONODES}" "${SNPSFILE}"  "${NODEPERLHASH}" "${NODELABELFILE}"  "${NODESNPCOUNTS}"
+    "${SNPSTONODES}" --debug "${SNPSFILE}"  "${NODEFILE}" "${NODELABELFILE}"  "${NODESNPCOUNTS}"
     
     # Rename these output files with a name reflecting the source file used to generate the data.
     for FILE in COUNT_Homoplastic_SNPs ClusterInfo Homoplasy_groups
