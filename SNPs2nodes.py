@@ -390,7 +390,11 @@ def writeNodeSigCounts(SigCountsFile, clades, root, group, genomeBits):
     outputFile = open(SigCountsFile, "w")
     clusters = {}
 
-    for node in clades[root].keys():
+    # This is where we make sure the nodes come out in the correct
+    # order.  This is a string sort, not a numeric sort, so ...? - JN
+    nodesToWrite = clades[root].keys().sorted()
+    
+    for node in nodesToWrite:
         # logging.debug("writeNodeSigCounts: root: %s => node: %s", root, node)
         nodeGenomes = clades[root][node]
         numNodeGenomes = genomeCount(nodeGenomes)
@@ -401,7 +405,7 @@ def writeNodeSigCounts(SigCountsFile, clades, root, group, genomeBits):
         # If this set of genomes has no SNPs that map to it, the count is zero.
         SNPsCount = len(group.get(nodeGenomes,{}).keys())
         outputFile.write("node: %s\tNumberTargets: %s\tNumberSNPs: %s\n" % (node, numNodeGenomes, SNPsCount))
-        # Write all genome names under this node... TBD XXX FIXME TODO - JN
+        # Write all genome names under this node.
         for genome in getGenomes(nodeGenomes, genomeBits):
             outputFile.write(genome + "\n")
         outputFile.write("\n")
@@ -421,7 +425,7 @@ def writeHomoplasyGroups(HomoplasyGroupsFile, group, IDsInNode, root, clusters, 
     genomeGroupsByNumberSNPs = [ ( genomes, len(SNPs.keys()) ) for genomes, SNPs in group.items() ]
 
     # Sort the genome groups by number of matching SNPs
-    genomeGroupsByNumberSNPs.sort(key=lambda genomeInfo: genomeInfo[1])
+    genomeGroupsByNumberSNPs.sort(reverse=True, key=lambda genomeInfo: genomeInfo[1])
 
     logging.debug("Starting to write homoplastic SNP counts")
     outputFile = open(HomoplasyGroupsFile, "w")
@@ -464,7 +468,7 @@ def writeClusterInfo(ClusterInfoFile, gl, clusters, core, locusToLocusID):
         printableClusters = []
         for genomeGroup in gl[sequence]:
             printableClusters.append(clusters[genomeGroup])
-        outputFile.write("%s\t%s\t%s\t%s\n" % (locusToLocusID[sequence], sequence, core[sequence], ",".join(printableClusters)))
+        outputFile.write("%s\t%s\t%s\t%s\n" % (locusToLocusID[sequence], sequence, 1 if core[sequence] else 0, " ".join(printableClusters)))
     
     outputFile.close()
     logging.debug("Done writing cluster info")
