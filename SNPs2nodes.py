@@ -332,8 +332,6 @@ def groupNodes(SNPsFile, clades, idsInNodes, genomeBits):
     logging.debug("Loci pointing to groups: %s", len(gl.keys()))
 
     logging.debug("Roots: %s", len(rootScore.keys()))
-    for root, score in rootScore.items():
-        logging.debug("  %s: %s",root, score)
 
     logging.debug("Loci: %s", lociAddedCount)
                   
@@ -393,7 +391,7 @@ def writeNodeSigCounts(SigCountsFile, clades, root, group, genomeBits):
     clusters = {}
 
     for node in clades[root].keys():
-        logging.debug("writeNodeSigCounts: root: %s => node: %s", root, node)
+        # logging.debug("writeNodeSigCounts: root: %s => node: %s", root, node)
         nodeGenomes = clades[root][node]
         numNodeGenomes = genomeCount(nodeGenomes)
         if numNodeGenomes == 1:
@@ -436,6 +434,7 @@ def writeHomoplasyGroups(HomoplasyGroupsFile, group, IDsInNode, root, clusters, 
             if matchingSNPs == 0:
                 # I don't think we can have an entry in group that doesn't have any SNPs associated.
                 logging.debug("How did we get here? - JN")
+                exit(1)
                 
             homoplasyGroupId = homoplasyGroupId + 1
             idString = "Group." + str(homoplasyGroupId)
@@ -446,6 +445,9 @@ def writeHomoplasyGroups(HomoplasyGroupsFile, group, IDsInNode, root, clusters, 
             for genome in getGenomes(groupGenomes, genomeBits):
                 outputFile.write(genome + "\n")
             outputFile.write("\n")             
+            if ( ( homoplasyGroupId % 10000 ) == 0 ):
+                logging.debug("Procesed homoplasy group ID %s with %s SNPs", homoplasyGroupId, matchingSNPs)
+
             
     outputFile.close()
     logging.debug("Done writing homoplasy groups")
