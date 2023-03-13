@@ -392,16 +392,17 @@ def writeNodeSigCounts(SigCountsFile, clades, root, group, genomeBits):
 
     # This is where we make sure the nodes come out in the correct
     # order.  This is a string sort, not a numeric sort, so ...? - JN
-    nodesToWrite = clades[root].keys().sorted()
+    nodesToWrite = list(clades[root].keys())
+    nodesToWrite.sort()
     
     for node in nodesToWrite:
         # logging.debug("writeNodeSigCounts: root: %s => node: %s", root, node)
         nodeGenomes = clades[root][node]
         numNodeGenomes = genomeCount(nodeGenomes)
         if numNodeGenomes == 1:
-            clusters[nodeGenomes] = "Leaf.node." + node
+            clusters[nodeGenomes] = "Leaf.Node." + node
         else:
-            clusters[nodeGenomes] = "Internal.node." + node
+            clusters[nodeGenomes] = "Internal.Node." + node
         # If this set of genomes has no SNPs that map to it, the count is zero.
         SNPsCount = len(group.get(nodeGenomes,{}).keys())
         outputFile.write("node: %s\tNumberTargets: %s\tNumberSNPs: %s\n" % (node, numNodeGenomes, SNPsCount))
