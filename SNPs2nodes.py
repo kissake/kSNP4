@@ -181,6 +181,7 @@ def groupNodes(SNPsFile, clades, idsInNodes, genomeBits):
     rootScore = {}
     # An overall count (probably equal to greatest SNP loci ID)
     lociAddedCount = 0
+    locusToLocusID = {}
 
     ### Symbols
     
@@ -246,10 +247,14 @@ def groupNodes(SNPsFile, clades, idsInNodes, genomeBits):
                 # it is False (not) (assigning the result of a boolean operation isn't
                 # super-common, but is legit.)
                 core[lastSnpLocus] = sum(allVariants.values()) == allGenomes
+                # This is just storing a counting integer; it feels wrong.
+                locusToLocusID[lastSnpLocus] = snpLocusID
 
                 # Create group and gl maps between genomes and locus ID:
                 matchingRoots = {}
                 for genomeSet in allVariants.values():
+                    if genomeSet == 0:
+                        continue
                     group.setdefault(genomeSet,{})[lastSnpLocus] = True
                     gl.setdefault(lastSnpLocus,{})[genomeSet] = True
 
@@ -284,6 +289,7 @@ def groupNodes(SNPsFile, clades, idsInNodes, genomeBits):
 
 
     ##### Execute for every loci in SNPs_all ; processing the very last one
+    ##### Execute for every loci in SNPs_all:
     # This code needs to be repeated at the very end of the loop
     # to ensure we hit the last SNP.
     lociAddedCount = lociAddedCount + 1
@@ -292,10 +298,14 @@ def groupNodes(SNPsFile, clades, idsInNodes, genomeBits):
     # it is False (not) (assigning the result of a boolean operation isn't
     # super-common, but is legit.)
     core[lastSnpLocus] = sum(allVariants.values()) == allGenomes
-
+    # This is just storing a counting integer; it feels wrong.
+    locusToLocusID[lastSnpLocus] = snpLocusID
+    
     # Create group and gl maps between genomes and locus ID:
     matchingRoots = {}
     for genomeSet in allVariants.values():
+        if genomeSet == 0:
+            continue
         group.setdefault(genomeSet,{})[lastSnpLocus] = True
         gl.setdefault(lastSnpLocus,{})[genomeSet] = True
 
@@ -306,6 +316,7 @@ def groupNodes(SNPsFile, clades, idsInNodes, genomeBits):
 
     for root in matchingRoots.keys():
         rootScore[root] = rootScore.get(root,0) + 1
+         
 
     ##### And now we are done processing the input file.
 
@@ -321,19 +332,36 @@ def groupNodes(SNPsFile, clades, idsInNodes, genomeBits):
     logging.debug("Loci pointing to groups: %s", len(gl.keys()))
 
     logging.debug("Roots: %s", len(rootScore.keys()))
+    for root, score in rootScore.items():
+        logging.debug("  %s: %s",root, score)
 
     logging.debug("Loci: %s", lociAddedCount)
                   
     
     # Returns core, group, gl, rootScore (was: num_map_to_node) and SNPsCount (# of SNPs)
-    return core, group, gl, rootScore, lociAddedCount
+    return core, group, gl, rootScore, lociAddedCount, locusToLocusID
 
-def findBestRoot(clades, rootScore):
+def findBestRoot(rootScore):
     logging.debug("Starting to find best root")
+
+    # This tells python to:
+    #   Break the dict into a list of key, value (root, score) tuples,
+    #   Examine the score (the second ([1]) item of each tuple), and, for the
+    #     largest value, return the entire tuple.
+    bestScore = max(rootScore.items(), key=lambda item: item[1])
+
+    # Then we extract the root (first ([0]) item in the tuple, and
+    bestRoot = bestScore[0]
+    # The score (second ([1]) item in the tuple)
+    bestRootScore = bestScore[1]
+
+    logging.debug("Best root: %s", bestRoot)
+    logging.debug("Best score: %s", bestRootScore)
+    logging.debug("Done finding best root")
     # Returns the best root, and that root's score (or the maximum number
     # of node loci associated with a given root)
-    logging.debug("Done finding best root")
-    return None, None
+
+    return bestRoot, bestRootScore
 
 def writeRerootedTree(TreeFile, root):
     logging.debug("Starting to write rerooted tree")
@@ -344,31 +372,102 @@ def writeRerootedTree(TreeFile, root):
 def writeHomoplasticSNPCounts(HomoplasticSNPsCountFile, SNPsCount, maxRootScore):
     logging.debug("Starting to write homoplastic SNP counts")
     outputFile = open(HomoplasticSNPsCountFile, "w")
-    # outputFile.write("Number_Homoplastic_SNPs: %s\n" % (SNPsCount - maxRootScore))
+    outputFile.write("Number_Homoplastic_SNPs: %s\n" % (SNPsCount - maxRootScore))
+    logging.debug("Number homoplastic SNPs: %s", SNPsCount - maxRootScore)
     outputFile.close()
     logging.debug("Done writing homoplastic SNP counts")
 
-def writeNodeSigCounts(SigCountsFile, clades, root, group):
+
+def genomeCount(genomesId):
+    # Count the number of bits that are set (one bit represents one genome)
+    return bin(genomesId).count("1")
+
+def getGenomes(genomesId, genomeBits):
+    # Return a list of every genome for which the bit is set on in genomesId.
+    return [genome for genome, bit in genomeBits.items() if bit & genomesId]
+
+
+def writeNodeSigCounts(SigCountsFile, clades, root, group, genomeBits):
     logging.debug("Starting to write node sig counts")
     outputFile = open(SigCountsFile, "w")
+    clusters = {}
+
+    for node in clades[root].keys():
+        logging.debug("writeNodeSigCounts: root: %s => node: %s", root, node)
+        nodeGenomes = clades[root][node]
+        numNodeGenomes = genomeCount(nodeGenomes)
+        if numNodeGenomes == 1:
+            clusters[nodeGenomes] = "Leaf.node." + node
+        else:
+            clusters[nodeGenomes] = "Internal.node." + node
+        # If this set of genomes has no SNPs that map to it, the count is zero.
+        SNPsCount = len(group.get(nodeGenomes,{}).keys())
+        outputFile.write("node: %s\tNumberTargets: %s\tNumberSNPs: %s\n" % (node, numNodeGenomes, SNPsCount))
+        # Write all genome names under this node... TBD XXX FIXME TODO - JN
+        for genome in getGenomes(nodeGenomes, genomeBits):
+            outputFile.write(genome + "\n")
+        outputFile.write("\n")
+    
     outputFile.close()
     logging.debug("Done writing node sig counts")
-    return None
+    return clusters
     
 def writeHomoplasyGroups(HomoplasyGroupsFile, group, IDsInNode, root, clusters, nodeCount):
+    logging.debug("Starting to figure out homoplasy groups")
+    # Start the homoplasy group IDs at the number of nodes so they don't overlap.
+    homoplasyGroupId = nodeCount
+    hpIds = {}
+    hpCount = {}
+    hpGroup = {}
+
+    genomeGroupsByNumberSNPs = [ ( genomes, len(SNPs.keys()) ) for genomes, SNPs in group.items() ]
+
+    # Sort the genome groups by number of matching SNPs
+    genomeGroupsByNumberSNPs.sort(key=lambda genomeInfo: genomeInfo[1])
+
     logging.debug("Starting to write homoplastic SNP counts")
     outputFile = open(HomoplasyGroupsFile, "w")
+
+    # We needed to sort this.
+    for groupGenomes, matchingSNPs in genomeGroupsByNumberSNPs:
+        if IDsInNode.get(groupGenomes,{}).get(root) is None:
+            # Then this group of genomes is homoplastic (doesn't appear in an existing clade)
+            
+            if matchingSNPs == 0:
+                # I don't think we can have an entry in group that doesn't have any SNPs associated.
+                logging.debug("How did we get here? - JN")
+                
+            homoplasyGroupId = homoplasyGroupId + 1
+            idString = "Group." + str(homoplasyGroupId)
+
+            clusters[groupGenomes] = idString
+            outputFile.write("Group: %s\tNumberTargets: %s\tNumberSNPs: %s\n" % (idString, genomeCount(groupGenomes), matchingSNPs ))
+            # Write all genome names under this node... TBD XXX FIXME TODO - JN
+            for genome in getGenomes(groupGenomes, genomeBits):
+                outputFile.write(genome + "\n")
+            outputFile.write("\n")             
+            
     outputFile.close()
     logging.debug("Done writing homoplasy groups")
+    return clusters
+    
 
-
-def writeClusterInfo(ClusterInfoFile, gl, clusters):
+def writeClusterInfo(ClusterInfoFile, gl, clusters, core, locusToLocusID):
     logging.debug("Starting to write cluster info")
     outputFile = open(ClusterInfoFile, "w")
+    outputFile.write("LocusNumber\tContextSeq\tCore\tClusters\n")
+
+    # Fun fact; Since these keys were inserted in sorted order, this should output them in sorted order.
+    for sequence in gl.keys():
+        printableClusters = []
+        for genomeGroup in gl[sequence]:
+            printableClusters.append(clusters[genomeGroup])
+        outputFile.write("%s\t%s\t%s\t%s\n" % (locusToLocusID[sequence], sequence, core[sequence], ",".join(printableClusters)))
+    
     outputFile.close()
     logging.debug("Done writing cluster info")
-
-
+    
+                         
                      
 if __name__ == "__main__":
 
@@ -397,20 +496,19 @@ if __name__ == "__main__":
 
     clades, IDsInNodes, genomeBits = inputClades(CladeStructuresFile)
 
-    core, group, gl, rootScore, SNPsCount = groupNodes(SNPsFile, clades, IDsInNodes, genomeBits)
+    core, group, gl, rootScore, SNPsCount, locusToLocusID = groupNodes(SNPsFile, clades, IDsInNodes, genomeBits)
           
-    root, maxScore = findBestRoot(clades, rootScore)
+    root, maxScore = findBestRoot(rootScore)
     
     writeHomoplasticSNPCounts(HomoplasticSNPsCountFile, SNPsCount, maxScore)
 
-    clusters = writeNodeSigCounts(SigCountsFile, clades, root, group)
+    clusters = writeNodeSigCounts(SigCountsFile, clades, root, group, genomeBits)
 
-    nodeCount=0 # TODO FIXME it is actually:
-    # nodeCount = len(clades[root]) # The number of distinct nodes within the tree.
+    nodeCount = len(clades[root]) # The number of distinct nodes within the tree.
 
-    writeHomoplasyGroups(HomoplasyGroupsFile, group, IDsInNodes, root, clusters, nodeCount)
+    clusters = writeHomoplasyGroups(HomoplasyGroupsFile, group, IDsInNodes, root, clusters, nodeCount)
 
-    writeClusterInfo(ClusterInfoFile, gl, clusters)
+    writeClusterInfo(ClusterInfoFile, gl, clusters, core, locusToLocusID)
 
     writeRerootedTree(TreeFile, root)
     
