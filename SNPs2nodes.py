@@ -361,11 +361,17 @@ def findBestRoot(rootScore):
 
     return bestRoot, bestRootScore
 
-def writeRerootedTree(TreeFile, root):
+def writeRerootedTree(TreeFile, TreeFileOut, root):
     logging.debug("Starting to write rerooted tree")
-    logging.warning("I don't know how to do the tree stuff...?!?")
+    
+    tree = Phylo.read(TreeFile, "newick")
+
+    # Reroot the tree; this is a part I'm not 100% clear on.
+    tree.root_with_outgroup(root)
+
+    Phylo.write(tree, TreeFileOut, "newick")
+    
     logging.debug("Done writing rerooted tree")
-    exit(1)
     
 def writeHomoplasticSNPCounts(HomoplasticSNPsCountFile, SNPsCount, maxRootScore):
     logging.debug("Starting to write homoplastic SNP counts")
@@ -469,7 +475,7 @@ def writeClusterInfo(ClusterInfoFile, gl, clusters, core, locusToLocusID):
         printableClusters = []
         for genomeGroup in gl[sequence]:
             printableClusters.append(clusters[genomeGroup])
-        outputFile.write("%s\t%s\t%s\t%s\n" % (locusToLocusID[sequence], sequence, 1 if core[sequence] else 0, " ".join(printableClusters)))
+        outputFile.write("%s\t%s\t%s\t%s\n" % (locusToLocusID[sequence], sequence, 1 if core[sequence] else 0, " ".join(printableClusters.reverse())))
     
     outputFile.close()
     logging.debug("Done writing cluster info")
@@ -494,6 +500,7 @@ if __name__ == "__main__":
     SNPsFile = options.SNPsFile[0]
     CladeStructuresFile = options.NodeCladeStructures[0]
     TreeFile = options.Tree[0]
+    TreeFileOut = TreeFile + ".rerooted"
 
     # Output
     SigCountsFile = options.OutputSigCounts[0]
@@ -526,7 +533,7 @@ if __name__ == "__main__":
     writeClusterInfo(ClusterInfoFile, gl, clusters, core, locusToLocusID)
     logging.info("Finished writing %s", ClusterInfoFile)
 
-    writeRerootedTree(TreeFile, root)
+    writeRerootedTree(TreeFile, TreeFileOut, root)
     logging.info("Finished writing %s", TreeFile)
 
     logging.info("SNPs2nodes finished.")
