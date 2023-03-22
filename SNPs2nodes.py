@@ -366,8 +366,12 @@ def writeRerootedTree(TreeFile, TreeFileOut, root):
     
     tree = Phylo.read(TreeFile, "newick")
 
+    print(tree)
+
     # Reroot the tree; this is a part I'm not 100% clear on.
     tree.root_with_outgroup(root)
+
+    print(tree)
 
     Phylo.write(tree, TreeFileOut, "newick")
     
@@ -386,20 +390,26 @@ def genomeCount(genomesId):
     # Count the number of bits that are set (one bit represents one genome)
     return bin(genomesId).count("1")
 
-def getGenomes(genomesId, genomeBits):
+def getSortedGenomeBits(genomeBits):
+    # Retrn a list of genome, bit value pairs, sorted by genome name.
+    # This is a one-time operation that can permit resolving a genome bit string
+    # in sorted-genome order in the same amount of time as the msb to lsb or
+    # lsb to msb order.
+    return sorted(genomeBits.items(),key = lambda x: x[0])
+
+def getGenomes(genomesId, sortedGenomeBits):
     # Return a list of every genome for which the bit is set on in genomesId.
-    return [genome for genome, bit in genomeBits.items() if bit & genomesId]
+    return [genome for genome, bit in sortedGenomeBits if bit & genomesId]
 
 
-def writeNodeSigCounts(SigCountsFile, clades, root, group, genomeBits):
+def writeNodeSigCounts(SigCountsFile, clades, root, group, sortedGenomeBits):
     logging.debug("Starting to write node sig counts")
     outputFile = open(SigCountsFile, "w")
     clusters = {}
 
     # This is where we make sure the nodes come out in the correct
     # order.  This is a string sort, not a numeric sort, so ...? - JN
-    nodesToWrite = list(clades[root].keys())
-    nodesToWrite.sort()
+    nodesToWrite = sorted(clades[root].keys())
     
     for node in nodesToWrite:
         # logging.debug("writeNodeSigCounts: root: %s => node: %s", root, node)
@@ -413,7 +423,7 @@ def writeNodeSigCounts(SigCountsFile, clades, root, group, genomeBits):
         SNPsCount = len(group.get(nodeGenomes,{}).keys())
         outputFile.write("node: %s\tNumberTargets: %s\tNumberSNPs: %s\n" % (node, numNodeGenomes, SNPsCount))
         # Write all genome names under this node.
-        for genome in getGenomes(nodeGenomes, genomeBits):
+        for genome in getGenomes(nodeGenomes, sortedGenomeBits):
             outputFile.write(genome + "\n")
         outputFile.write("\n")
     
@@ -421,7 +431,7 @@ def writeNodeSigCounts(SigCountsFile, clades, root, group, genomeBits):
     logging.debug("Done writing node sig counts")
     return clusters
     
-def writeHomoplasyGroups(HomoplasyGroupsFile, group, IDsInNode, root, clusters, nodeCount):
+def writeHomoplasyGroups(HomoplasyGroupsFile, group, IDsInNode, root, clusters, nodeCount, sortedGenomeBits):
     logging.debug("Starting to figure out homoplasy groups")
     # Start the homoplasy group IDs at the number of nodes so they don't overlap.
     homoplasyGroupId = nodeCount
@@ -452,8 +462,7 @@ def writeHomoplasyGroups(HomoplasyGroupsFile, group, IDsInNode, root, clusters, 
 
             clusters[groupGenomes] = idString
             outputFile.write("Group: %s\tNumberTargets: %s\tNumberSNPs: %s\n" % (idString, genomeCount(groupGenomes), matchingSNPs ))
-            # Write all genome names under this node... TBD XXX FIXME TODO - JN
-            for genome in getGenomes(groupGenomes, genomeBits):
+            for genome in getGenomes(groupGenomes, sortedGenomeBits):
                 outputFile.write(genome + "\n")
             outputFile.write("\n")             
             if ( ( homoplasyGroupId % 10000 ) == 0 ):
@@ -475,7 +484,7 @@ def writeClusterInfo(ClusterInfoFile, gl, clusters, core, locusToLocusID):
         printableClusters = []
         for genomeGroup in gl[sequence]:
             printableClusters.append(clusters[genomeGroup])
-        outputFile.write("%s\t%s\t%s\t%s\n" % (locusToLocusID[sequence], sequence, 1 if core[sequence] else 0, " ".join(printableClusters.reverse())))
+        outputFile.write("%s\t%s\t%s\t%s\n" % (locusToLocusID[sequence], sequence, 1 if core[sequence] else 0, " ".join(printableClusters)))
     
     outputFile.close()
     logging.debug("Done writing cluster info")
@@ -509,6 +518,15 @@ if __name__ == "__main__":
     # Processing
     logging.info("SNPs2nodes starting.")
 
+    ### Data structures in use:
+    # clades:  A dictionary that maps a root + a node on the tree with that root to the list of genomes under that node.
+    # IDsInNodes:
+    #    A dictionary that maps a list of genomes + a root node to the node that is the node farthest from the root that
+    #    is between those nodes (and no others) and the root.  It is the inverse of the above dictionary in the sense that
+    #    it permits mapping from lsit of genomes to a node, given a root.
+    # genomeBits:  A mapping from a genome name to a bit field value;  Permits translating from a bit field to a list of
+    #    genomes, and back.
+
     clades, IDsInNodes, genomeBits = inputClades(CladeStructuresFile)
     logging.info("Loaded nodes for tree of %s genomes",  len(genomeBits))
                     
@@ -522,12 +540,15 @@ if __name__ == "__main__":
     writeHomoplasticSNPCounts(HomoplasticSNPsCountFile, SNPsCount, maxScore)
     logging.info("Finished writing %s", HomoplasticSNPsCountFile)
 
-    clusters = writeNodeSigCounts(SigCountsFile, clades, root, group, genomeBits)
+    sortedGenomeBits = getSortedGenomeBits(genomeBits)
+    logging.debug("Finished sorting genomes for ordered display.")
+
+    clusters = writeNodeSigCounts(SigCountsFile, clades, root, group, sortedGenomeBits)
     logging.info("Finished writing %s", SigCountsFile)
 
     nodeCount = len(clades[root]) # The number of distinct nodes within the tree.
 
-    clusters = writeHomoplasyGroups(HomoplasyGroupsFile, group, IDsInNodes, root, clusters, nodeCount)
+    clusters = writeHomoplasyGroups(HomoplasyGroupsFile, group, IDsInNodes, root, clusters, nodeCount, sortedGenomeBits)
     logging.info("Finished writing %s", HomoplasyGroupsFile)
 
     writeClusterInfo(ClusterInfoFile, gl, clusters, core, locusToLocusID)
