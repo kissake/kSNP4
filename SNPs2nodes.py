@@ -207,6 +207,8 @@ def groupNodes(SNPsFile, clades, idsInNodes, genomeBits):
     currentLocus = {}
     lastSnpLocus = None
     allVariants = {}
+    # A queue of SNPs pending processing.
+    snpQueue = {}
  
     # Setup for buffered reading of input file
     bufferSize = 32 * 1024 # Make this a global, or commandline argument?
@@ -228,99 +230,94 @@ def groupNodes(SNPsFile, clades, idsInNodes, genomeBits):
             snpPosition = snpData[position]
             snpGenome = snpData[genome]
             thisBit = genomeBits[snpGenome]
+
+            # Add the current SNP to our queue of SNPs to handle.
+            snpQueue.setdefault(snpLocus,[]).append([snpCenter, snpLocusID, snpPosition, snpGenome, thisBit])
             
-                
-            if snpLocus != lastSnpLocus:
-                if lastSnpLocus is None:
-                    # This is actually our first one.
-                    lastSnpLocus = snpLocus
-                    continue
-                if ( ( lociAddedCount % 10000 ) == 0 ):
-                    logging.debug("Processed %s SNPs, currently on %s", lociAddedCount, lastSnpLocus)
-                    
-                ##### Execute for every loci in SNPs_all:
-                # This code needs to be repeated at the very end of the loop
-                # to ensure we hit the last SNP.
-                lociAddedCount = lociAddedCount + 1
-
-                # If this SNP appears in all genomes, it is a core genome; otherwise
-                # it is False (not) (assigning the result of a boolean operation isn't
-                # super-common, but is legit.)
-                core[lastSnpLocus] = sum(allVariants.values()) == allGenomes
-                # This is just storing a counting integer; it feels wrong.
-                locusToLocusID[lastSnpLocus] = snpLocusID
-
-                # Create group and gl maps between genomes and locus ID:
-                matchingRoots = {}
-                for genomeSet in allVariants.values():
-                    if genomeSet == 0:
-                        continue
-                    group.setdefault(genomeSet,{})[lastSnpLocus] = True
-                    gl.setdefault(lastSnpLocus,{})[genomeSet] = True
-
-                    # Identify roots that have at least one clade that
-                    # matches at least one variant of this locus.
-                    for root in idsInNodes.get(genomeSet,{}).keys():
-                        matchingRoots[root] = True
-
-                for root in matchingRoots.keys():
-                    rootScore[root] = rootScore.get(root,0) + 1
-                    
-                
-                ##### Reset for the current (new) locus.
-                currentLocus = {}
-                allVariants = {
-                    'A': 0,
-                    'C': 0,
-                    'G': 0,
-                    'T': 0,
-                    '-': 0 # Not sure we keep this one...?
-                }
-                lastSnpLocus = snpLocus
-
-            ##### Handle the current (new) locus
-            currentLocus.setdefault(thisBit, {})[snpPosition] = snpCenter
-            if snpCenter == '':
-                snpCenter = '-'
-            allVariants[snpCenter] = allVariants.get(snpCenter,0) | thisBit
-
-                
         nextLines = inputFile.readlines(bufferSize)
 
 
-    ##### Execute for every loci in SNPs_all ; processing the very last one
-    ##### Execute for every loci in SNPs_all:
-    # This code needs to be repeated at the very end of the loop
-    # to ensure we hit the last SNP.
-    lociAddedCount = lociAddedCount + 1
+        # See if we have reached the end of the file.  If so, there is no "current" SNP, so
+        # we will finish out the queue.  We do this by setting snpLocus to a value not in the queue
+        # so that we match all of the queue items.
+        if nextLines == []:
+            snpLocus = ''
 
-    # If this SNP appears in all genomes, it is a core genome; otherwise
-    # it is False (not) (assigning the result of a boolean operation isn't
-    # super-common, but is legit.)
-    core[lastSnpLocus] = sum(allVariants.values()) == allGenomes
-    # This is just storing a counting integer; it feels wrong.
-    locusToLocusID[lastSnpLocus] = snpLocusID
-    
-    # Create group and gl maps between genomes and locus ID:
-    matchingRoots = {}
-    for genomeSet in allVariants.values():
-        if genomeSet == 0:
-            continue
-        group.setdefault(genomeSet,{})[lastSnpLocus] = True
-        gl.setdefault(lastSnpLocus,{})[genomeSet] = True
+        # Process all of the SNPs we've fully read so far.
+        # logging.debug("This queue is: %s", snpQueue)
 
-        # Identify roots that have at least one clade that
-        # matches at least one variant of this locus.
-        for root in idsInNodes.get(genomeSet,{}).keys():
-            matchingRoots[root] = True
+        newQueue = {}
+        while snpQueue:
+            snp, snpData = snpQueue.popitem()
+            if snp == snpLocus:
+                newQueue[snp] = snpData
+                continue # skip over the "current" SNP; it isn't done yet (probably).
 
-    for root in matchingRoots.keys():
-        rootScore[root] = rootScore.get(root,0) + 1
-         
-
-    ##### And now we are done processing the input file.
+            # Bookkeeping / counter (maybe grab this from some other data?
+            lociAddedCount = lociAddedCount + 1
+            if ( ( lociAddedCount % 10000 ) == 0 ):
+                logging.debug("Processed %s SNPs, currently on %s", lociAddedCount, snp)
 
 
+            ##### Reset for the current (new) SNP.
+            currentLocus = {}
+            
+            # We haven't seen any SNPs yet, so the center-to-genome map is empty.
+            allVariants = {
+                'A': 0,
+                'C': 0,
+                'G': 0,
+                'T': 0,
+                '-': 0 # Not sure we keep this one...?
+            }
+
+            # For each genome found for this SNP...
+            # logging.debug("This snpData is: %s", snpData)
+            for entry in snpData:
+
+                ##### Handle the current (new) locus
+                # currentLocus is a dictionary that for each genome maps a position to a central mer.
+                currentLocus.setdefault(entry[4], {})[entry[2]] = entry[0]
+                if entry[0] == '':
+                    entry[0] = '-'
+
+                # allVariants is a dictionary that maps a central mer to all genomes sharing that mer.
+                allVariants[entry[0]] = allVariants.get(entry[0],0) | entry[4]
+
+            # If this SNP appears in all genomes, it is a core genome; otherwise
+            # it is False (not) 
+            representedGenomes = 0
+            matchingRoots = {}
+            for variantGenomes in allVariants.values():
+                if variantGenomes == 0:
+                    continue
+
+                representedGenomes = representedGenomes | variantGenomes
+
+                group.setdefault(variantGenomes,{})[snp] = True
+                gl.setdefault(snp,{})[variantGenomes] = True
+
+                # Identify roots that have at least one clade that
+                # matches at least one variant of this locus.
+                for root in idsInNodes.get(variantGenomes,{}).keys():
+                    matchingRoots[root] = True
+
+                
+            core[snp] = representedGenomes == allGenomes
+
+            # This is just storing a counting integer; it feels wrong.
+            # We pull the locus ID out of the first entry since we know we got at least one entry.
+            locusToLocusID[snp] = snpData[0][1]
+
+            for root in matchingRoots.keys():
+                rootScore[root] = rootScore.get(root,0) + 1
+
+        if newQueue:
+            snpQueue = newQueue
+
+
+    if snpQueue:
+        logging.debug("Odd; our snpQueue should be empty if we got here... %s", snpQueue)
     inputFile.close()
 
     logging.debug("Done grouping nodes")
@@ -369,7 +366,9 @@ def writeRerootedTree(TreeFile, TreeFileOut, root):
     print(tree)
 
     # Reroot the tree; this is a part I'm not 100% clear on.
-    tree.root_with_outgroup(root)
+    newroot = tree.find_clades(root)
+    # This is under question.
+    tree.root_with_outgroup(newroot)
 
     print(tree)
 
@@ -480,11 +479,14 @@ def writeClusterInfo(ClusterInfoFile, gl, clusters, core, locusToLocusID):
     outputFile.write("LocusNumber\tContextSeq\tCore\tClusters\n")
 
     # Fun fact; Since these keys were inserted in sorted order, this should output them in sorted order.
-    for sequence in gl.keys():
+    # Funner fact: That's BS.
+    for sequence, locusID in sorted(locusToLocusID.items(), key = lambda x: int(x[1])):
+        # Below is broken; wrong order.
+        # for sequence in gl.keys():
         printableClusters = []
         for genomeGroup in gl[sequence]:
             printableClusters.append(clusters[genomeGroup])
-        outputFile.write("%s\t%s\t%s\t%s\n" % (locusToLocusID[sequence], sequence, 1 if core[sequence] else 0, " ".join(printableClusters)))
+        outputFile.write("%s\t%s\t%s\t%s\n" % (locusID, sequence, 1 if core[sequence] else 0, " ".join(printableClusters)))
     
     outputFile.close()
     logging.debug("Done writing cluster info")
