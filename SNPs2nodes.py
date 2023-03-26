@@ -28,6 +28,9 @@ import logging as logging
 # Phylogenic tree operations
 import Bio.Phylo as Phylo
 
+# So we can output some more complex structures in a readable way.
+import pprint as pprint
+
 # Regular expressions for input parsing ... Not a huge deal as long
 # as our files aren't insane.
 
@@ -94,6 +97,85 @@ of the tree, and output informaiton about that tree and any identified  homoplas
         return parser.parse_args(override)
 
 
+def labelTree(tree):
+    # Add labels (names) to any tree nodes that are as yet unlabeled.  This helps us consistently
+    # reference nodes even after re-rooting.
+    counter = 1 # starting label
+    
+    for node in tree.find_clades():
+        if node.name is None:
+            node.name = str(counter)
+            counter = counter + 1
+
+    return tree
+
+
+
+
+def generateClades(treeFile):
+    # From a given tree, generate all possible clades
+    # This is an alternative to inputClades()
+    # This is probably(?) faster than inputClades(), as it doesn't require I/O.
+
+    
+    # Load the tree from the source file.
+    tree = Phylo.read(treeFile, "newick")
+    logging.debug("Loaded tree from %s", treeFile)
+
+    
+    # Generate genomeBits for return.
+    genomesList = [ node.name for node in tree.find_elements() if node.name is not None ]
+
+    genomeBits = {}
+    maxGenomeBit = 1    
+    for genome in genomesList:
+        genomeBits[genome] = maxGenomeBit
+        maxGenomeBit = maxGenomeBit * 2
+
+
+    # Label the tree so we have some sort of (unique, unless a genome has a low integer
+    # as a name) identifier for each node.
+    labeledTree = labelTree(tree)
+
+
+
+    # Generate a list of clades
+    clades = {}
+    IDsInNode = {}
+
+    allClades = [ node.name for node in labeledTree.find_clades() ]
+    for root in allClades:
+        clades[root] = {}
+        labeledTree.root_with_outgroup(root)
+        # logging.debug("Tree with root %s:", root)
+        # logging.debug("%s", str(labeledTree))
+        for subClade in allClades:  # This lets us do root:root, which is the same as _all_... so there's that.
+
+            # Add up the genomeBits for all sub-clades that are actually genomes (terminal / leaf nodes)
+            cladeGenome = sum([ genomeBits.get(clade.name, 0) for clade in labeledTree.find_any(subClade).get_terminals() ])
+
+            clades[root][subClade] = cladeGenome
+            IDsInNode.setdefault(cladeGenome, {})[root] = subClade
+    
+    # Restore the tree to some semblance of the original state.
+    labeledTree.root_with_outgroup(labeledTree.find_clades('1')) # There _should_ be a '1'?
+
+    
+            
+    logging.debug("Length(clades): %s", len(clades.keys()))
+    # logging.debug("clades: %s", pprint.pformat(clades))
+    
+    logging.debug("Length(IDsInNode): %s", len(IDsInNode.keys()))
+    # logging.debug("IDsInNode: %s", pprint.pformat(IDsInNode))
+
+    # logging.debug("genomeBits: %s", pprint.pformat(genomeBits))
+    
+    logging.debug("Done reading nodes list")
+    return clades, IDsInNode, genomeBits, labeledTree
+    
+    
+
+    
 def inputClades(cladesFile):
     logging.debug("Starting to read nodes list")
     # Returns clades and IDsInNode
@@ -165,8 +247,13 @@ def inputClades(cladesFile):
     inputFile.close()
 
     logging.debug("Length(clades): %s", len(clades.keys()))
+    logging.debug("clades: %s", pprint.pformat(clades))
+
     logging.debug("Length(IDsInNode): %s", len(IDsInNode.keys()))
-    
+    logging.debug("IDsInNode: %s", pprint.pformat(IDsInNode))
+
+    logging.debug("genomeBits: %s", pprint.pformat(genomeBits))
+
     logging.debug("Done reading nodes list")
     return clades, IDsInNode, genomeBits
 
@@ -246,6 +333,7 @@ def groupNodes(SNPsFile, clades, idsInNodes, genomeBits):
         # Process all of the SNPs we've fully read so far.
         # logging.debug("This queue is: %s", snpQueue)
 
+        # We will save the in-progress SNP into the next queue.
         newQueue = {}
         while snpQueue:
             snp, snpData = snpQueue.popitem()
@@ -358,10 +446,10 @@ def findBestRoot(rootScore):
 
     return bestRoot, bestRootScore
 
-def writeRerootedTree(TreeFile, TreeFileOut, root):
+def writeRerootedTree(tree, TreeFileOut, root):
     logging.debug("Starting to write rerooted tree")
     
-    tree = Phylo.read(TreeFile, "newick")
+    # tree = Phylo.read(TreeFile, "newick")
 
     print(tree)
 
@@ -529,9 +617,12 @@ if __name__ == "__main__":
     # genomeBits:  A mapping from a genome name to a bit field value;  Permits translating from a bit field to a list of
     #    genomes, and back.
 
-    clades, IDsInNodes, genomeBits = inputClades(CladeStructuresFile)
-    logging.info("Loaded nodes for tree of %s genomes",  len(genomeBits))
-                    
+    # clades, IDsInNodes, genomeBits = inputClades(CladeStructuresFile)
+    # logging.info("Loaded nodes for tree of %s genomes",  len(genomeBits))
+
+    clades, IDsInNodes, genomeBits, labeledTree = generateClades(TreeFile) # Should be the same results as above inputClades, but maybe faster?
+    logging.info("Loaded nodes for tree of %s genomes from %s",  len(genomeBits), TreeFile)
+   
 
     core, group, gl, rootScore, SNPsCount, locusToLocusID = groupNodes(SNPsFile, clades, IDsInNodes, genomeBits)
     logging.info("Loaded %s SNPs, %s possible roots scored.", SNPsCount, len(rootScore))
@@ -556,8 +647,8 @@ if __name__ == "__main__":
     writeClusterInfo(ClusterInfoFile, gl, clusters, core, locusToLocusID)
     logging.info("Finished writing %s", ClusterInfoFile)
 
-    writeRerootedTree(TreeFile, TreeFileOut, root)
-    logging.info("Finished writing %s", TreeFile)
+    writeRerootedTree(labeledTree, TreeFileOut, root)
+    logging.info("Finished writing %s", TreeFileOut)
 
     logging.info("SNPs2nodes finished.")
     
