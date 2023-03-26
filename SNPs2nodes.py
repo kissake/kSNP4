@@ -28,9 +28,6 @@ import logging as logging
 # Phylogenic tree operations
 import Bio.Phylo as Phylo
 
-# So we can output some more complex structures in a readable way.
-import pprint as pprint
-
 # Regular expressions for input parsing ... Not a huge deal as long
 # as our files aren't insane.
 
@@ -77,13 +74,13 @@ of the tree, and output informaiton about that tree and any identified  homoplas
 
     parser.add_argument('SNPsFile', metavar='SNPsFile', nargs=1,
                         help='The filename where discovered SNPs can be found.')
-
-    parser.add_argument('NodeCladeStructures', metavar='NodeCladeStructures', nargs=1,
-                        help='The filename where all possible clade structures for the nodes can be found.')
-
+    
     parser.add_argument('Tree', metavar='Tree', nargs=1,
                         help='File containing the computed tree in Newick format.  The newly computed tree will use the same filename, with a .rerooted suffix.')
 
+    parser.add_argument('TreeOutput', metavar='TreeOutput', nargs=1,
+                        help='The filename for writing the rerooted tree.')
+    
     parser.add_argument('OutputSigCounts', metavar='SigCounts', nargs=1,
                         help='Output filename for information about the tree nodes.')
     
@@ -163,99 +160,13 @@ def generateClades(treeFile):
     
             
     logging.debug("Length(clades): %s", len(clades.keys()))
-    # logging.debug("clades: %s", pprint.pformat(clades))
     
     logging.debug("Length(IDsInNode): %s", len(IDsInNode.keys()))
-    # logging.debug("IDsInNode: %s", pprint.pformat(IDsInNode))
-
-    # logging.debug("genomeBits: %s", pprint.pformat(genomeBits))
     
     logging.debug("Done reading nodes list")
     return clades, IDsInNode, genomeBits, labeledTree
     
     
-
-    
-def inputClades(cladesFile):
-    logging.debug("Starting to read nodes list")
-    # Returns clades and IDsInNode
-
-    # Setup for buffered reading of input file
-    bufferSize = 32 * 1024 # Make this a global, or commandline argument?
-    inputFile = open(cladesFile, "r")
-    nextLines = inputFile.readlines(bufferSize)
-
-    # A dict to translate from genome names to corresponding bit values.
-    genomeBits = {}
-    maxGenomeBit = 1 # Very first genome found is 1, then increase by factor of 2
-
-    clades = {}
-    IDsInNode = {}
-    
-    currRoot = None
-    currNode = None
-    genomeList = 0
-    
-    while nextLines != []:
-        for line in nextLines:
-            # Valid lines either have:
-            #   4 elements ("root:", root node, "node:", sub node),
-            #   one element (leaf node), or
-            #   No elements (empty line, end of clade)
-            elements = line.strip().split()
-            # logging.debug("Elements: %s", elements)
-            if len(elements) == 0:
-                # End of clade, looking for a new one.
-                clades.setdefault(currRoot, {})[currNode] = genomeList
-                IDsInNode.setdefault(genomeList, {})[currRoot] = currNode
-                # logging.debug("End of clade w/ root: %s and node: %s.  Genomes: %s", currRoot, currNode, genomeList)
-                # The below is immediately overwritten by start-of-clade behavior.
-                currRoot = None
-                currNode = None
-                genomeList = 0
-                
-            elif len(elements) == 4:
-                # Start of clade:
-                if elements[0] == "root:" and elements[2] == "node:":
-                    currRoot = elements[1]
-                    currNode = elements[3]
-                    genomeList = 0 # Empty bit field.
-                    # logging.debug("Start of clade w/ root: %s and node: %s.", currRoot, currNode)
-                                    
-                else:
-                    logging.warning("Syntax error reading clades from %s.  Exiting.", cladesFile)
-                    exit(1)
-            else:
-                # Identify the bit corresponding to the current genome (or add this genome to the list
-                # if it isn't there yet)
-                thisGenome = elements[0]
-                thisBit = genomeBits.setdefault(thisGenome, maxGenomeBit)
-                if thisBit == maxGenomeBit:
-                    # logging.debug("Geome: %s => %s", thisGenome, thisBit)
-                    maxGenomeBit = maxGenomeBit * 2
-            
-                # Set the bit for this genome in this clade.
-                genomeList = genomeList | thisBit
-
-        nextLines = inputFile.readlines(bufferSize)
-
-    # Handle the very last clade we reviewed, in case there was no terminal bare newline in the file:
-    # End of clade
-    clades.setdefault(currRoot, {})[currNode] = genomeList
-    IDsInNode.setdefault(genomeList, {})[currRoot] = currNode
-     
-    inputFile.close()
-
-    logging.debug("Length(clades): %s", len(clades.keys()))
-    logging.debug("clades: %s", pprint.pformat(clades))
-
-    logging.debug("Length(IDsInNode): %s", len(IDsInNode.keys()))
-    logging.debug("IDsInNode: %s", pprint.pformat(IDsInNode))
-
-    logging.debug("genomeBits: %s", pprint.pformat(genomeBits))
-
-    logging.debug("Done reading nodes list")
-    return clades, IDsInNode, genomeBits
 
 
 def groupNodes(SNPsFile, clades, idsInNodes, genomeBits):
@@ -451,14 +362,12 @@ def writeRerootedTree(tree, TreeFileOut, root):
     
     # tree = Phylo.read(TreeFile, "newick")
 
-    print(tree)
-
     # Reroot the tree; this is a part I'm not 100% clear on.
     newroot = tree.find_clades(root)
     # This is under question.
     tree.root_with_outgroup(newroot)
 
-    print(tree)
+    logging.debug("Tree: %s", str(tree))
 
     Phylo.write(tree, TreeFileOut, "newick")
     
@@ -597,9 +506,9 @@ if __name__ == "__main__":
 
     # Input
     SNPsFile = options.SNPsFile[0]
-    CladeStructuresFile = options.NodeCladeStructures[0]
+    # CladeStructuresFile = options.NodeCladeStructures[0]
     TreeFile = options.Tree[0]
-    TreeFileOut = TreeFile + ".rerooted"
+    TreeFileOut = options.TreeOutput[0]
 
     # Output
     SigCountsFile = options.OutputSigCounts[0]
